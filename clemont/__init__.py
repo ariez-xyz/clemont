@@ -6,7 +6,14 @@ __author__ = "David Pape"
 # Always available backends
 from .backends.faiss import BruteForce
 from .backends.kdtree import KdTree
-from .backends.snn import Snn
+
+# Optional backends
+try:
+    from .backends.snn import Snn
+    _HAS_SNN = True
+except ImportError:
+    _HAS_SNN = False
+    Snn = None
 
 # BDD backend only if dependencies available
 try:
@@ -16,15 +23,21 @@ except ImportError:
     _HAS_BDD = False
     BDD = None
 
-__all__ = ["BruteForce", "KdTree", "Snn"]
+__all__ = ["BruteForce", "KdTree"]
+if _HAS_SNN:
+    __all__.append("Snn")
 if _HAS_BDD:
     __all__.append("BDD")
 
 def list_available_backends():
     """List all available backends."""
-    backends = ["BruteForce", "KdTree", "Snn"]
+    backends = ["BruteForce", "KdTree"]
+    if _HAS_SNN:
+        backends.append("Snn")
+    else:
+        backends.append("Snn (UNAVAILABLE - requires manual installaion, see readme)")
     if _HAS_BDD:
         backends.append("BDD")
     else:
-        backends.append("BDD (UNAVAILABLE - requires manual dd installation, see readme)")
+        backends.append("BDD (UNAVAILABLE - requires manual installation, see readme)")
     return backends

@@ -6,8 +6,24 @@ import numpy as np
 from clemont.backends.base import BaseBackend
 from clemont.backends.faiss import BruteForce
 
+try:
+    import snnpy
+    _HAS_SNNPY = True
+except ImportError:
+    _HAS_SNNPY = False
+    snnpy = None
+
 class Snn(BaseBackend):
     def __init__(self, df, decision_col, epsilon, metric='l2', batchsize=500, bf_threads=1):
+        if not _HAS_SNNPY:
+            raise ImportError(
+                "\n" + "="*60 + "\n"
+                "SNN backend requires 'snn' package binding\n"
+                "This cannot be installed automatically via pip.\n\n"
+                "Please see the installation instructions in the README.\n"
+                "="*60
+            )
+
         if metric != 'l2':
             raise NotImplementedError(f"invalid metric {metric}. snnpy only supports l2")
         if epsilon > 0.1:

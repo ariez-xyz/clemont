@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "pybind11"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clemont"
+version = "0.1.0"
+description = "Monitoring AI models for fairness and robustness"
+authors = [{name = "David Pape", email = "your.email@example.com"}]
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "numpy",
+    "pandas", 
+    "scikit-learn",
+    "faiss-cpu",
+    "psutil",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/clemont"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["clemont*"]

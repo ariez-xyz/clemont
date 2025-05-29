@@ -6,15 +6,31 @@ Clemont can maintain a throughput in the hundreds of samples per second even aft
 
 ## Installation
 
-Install Clemont from PyPI:
+### Docker
+
+For easy experimentation with all backends including BDD and SNN, use the provided Docker container:
+
+```bash
+# Build the Docker image
+docker build -t clemont .
+# Run the example script
+docker run --rm -v $(pwd):/workspace clemont python example.py
+# Run an interactive terminal for development
+docker run -it --rm -v $(pwd):/workspace clemont
+```
+
+
+### pip
 
 ```bash
 pip install clemont
 ```
 
-### BDD Backend Requirements
+The BDD and SNN dependencies require extra steps to install. As a result, the corresponding backends will not be available until the following steps have been completed (both can be done using `postinstall.sh`):
 
-**Important**: The BDD backend requires the `dd.cudd` package, which cannot be automatically installed via pip due to its dependency on CUDD which is a C software package. If you plan to use the BDD backend, you must install `dd` with CUDD bindings manually using the official installation script:
+#### BDD requirements
+
+The BDD backend requires the `dd.cudd` package, which cannot be automatically installed via pip due to its dependency on CUDD. If you plan to use the BDD backend, you must install `dd` with CUDD bindings manually using the official installation script.
 
 ```bash
 curl -O https://raw.githubusercontent.com/tulip-control/dd/refs/heads/main/examples/install_dd_cudd.sh
@@ -22,22 +38,21 @@ chmod +x install_dd_cudd.sh
 ./install_dd_cudd.sh
 ```
 
-### Docker
+#### SNN requirements
 
-For easy experimentation with all backends including BDD, use the provided Docker container which has all dependencies pre-installed:
+This installation may be problematic. A simple `pip install snnpy` may error out with a message about `pybind11`. If so, run:
 
 ```bash
-# Build the Docker image
-docker build -t clemont .
-
-# Run an interactive container with your current directory mounted
-docker run -it -v $(pwd):/workspace clemont
-
-# Inside the container, you can now use all backends including BDD
-python -c "from aimon.backends.bdd import BDD; print('BDD backend ready!')"
+pip install wheel setuptools pip --upgrade
+pip install snnpy
 ```
 
-The Docker container provides a bash shell where you can run Python scripts or start an interactive Python session with all Clemont backends available.
+On Apple Silicon, `brew install llvm libomp` may be necessary (see [here](https://stackoverflow.com/questions/60005176/how-to-deal-with-clang-error-unsupported-option-fopenmp-on-travis)) if the installation now fails for reasons related to OpenMP. If so, try the above command and set the CC and CXX environment variables accordingly, e.g.
+
+```
+export CC=/opt/homebrew/opt/llvm/bin/clang
+export CCX=/opt/homebrew/opt/llvm/bin/clang++
+```
 
 ## Usage
 
@@ -58,7 +73,7 @@ See also `example.py`.
 ```python
 import pandas as pd
 import numpy as np
-from aimon.backends.faiss import BruteForce
+from clemont.backends.faiss import BruteForce
 
 # Create random example data
 column_names = ['pred'] + [f'c{i}' for i in range(1, 10)]

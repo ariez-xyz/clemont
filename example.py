@@ -1,6 +1,10 @@
 import pandas as pd
 import numpy as np
-from aimon.backends.faiss import BruteForce
+
+from clemont.backends.faiss import BruteForce
+from clemont.backends.snn import Snn
+from clemont.backends.bdd import BDD
+from clemont.backends.kdtree import KdTree
 
 num_rows = 1000
 num_columns = 10
@@ -16,9 +20,10 @@ df['pred'] = (df['pred'] > 0.75).astype(int) # Binary decision
 # Set up backend
 backend = BruteForce(df, 'pred', epsilon)
 
-# Or, to use e.g. BDD:
-# from aimon.backends.bdd import BDD
+# Other backends:
+# backend = Snn(df, 'pred', epsilon)
 # backend = BDD(df, 1//epsilon, 'pred', collect_cex=True)
+# backend = KdTree(df, 'pred', epsilon, metric='infinity', batchsize=100)
 
 # Monitoring procedure
 for index, row in df.iterrows():
