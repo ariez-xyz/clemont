@@ -22,7 +22,7 @@ backend = BruteForce(df, 'pred', epsilon)
 
 # Other backends:
 # backend = Snn(df, 'pred', epsilon)
-# backend = BDD(df, 1//epsilon, 'pred', collect_cex=True)
+# backend = BDD(df, int(1//epsilon), 'pred', collect_cex=True)
 # backend = KdTree(df, 'pred', epsilon, metric='infinity', batchsize=100)
 
 # Monitoring procedure
