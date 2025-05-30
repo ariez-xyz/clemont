@@ -25,9 +25,9 @@ docker run -it --rm -v $(pwd):/workspace clemont
 pip install clemont
 ```
 
-#### NOTE: Manual installation of BDD dependency
+#### ⚠️ IMPORTANT: Manual installation of BDD dependency
 
-The BDD backend requires the `dd.cudd` package, which cannot be automatically installed via pip due to its dependency on CUDD. As a result, it will not be available until the following steps have been completed. If you plan to use the BDD backend, you must install `dd.cudd` by running the [official installation script](https://github.com/tulip-control/dd/blob/main/examples/install_dd_cudd.sh):
+The BDD backend requires the `dd.cudd` package, which cannot be automatically installed via pip due to its dependency on CUDD. As a result, it will not be available until the following steps have been completed. If you plan to use the BDD backend, you must install `dd.cudd` by manually running the [official installation script](https://github.com/tulip-control/dd/blob/main/examples/install_dd_cudd.sh) in your Python environment:
 
 ```bash
 curl -O https://raw.githubusercontent.com/tulip-control/dd/refs/heads/main/examples/install_dd_cudd.sh
