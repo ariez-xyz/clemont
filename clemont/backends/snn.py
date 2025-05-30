@@ -12,6 +12,17 @@ except ImportError:
     snnpy = None
 
 class Snn(BaseBackend):
+    """
+    snn monitoring backend. L2 metric only.
+
+    Attributes:
+        df (pandas.DataFrame): Dataframe holding a sample of the data. Used to infer number of classes.
+        decision_col (str): Name of the column holding the model decision.
+        epsilon (float): maximum distance for samples to be considered close
+        metric (string): Optional. Metric to use, defaults to 'l2' which is the only accepted value
+        batchsize (int): Optional, defaults to 500. Size of short term memory (how many samples to process until reindex)
+        bf_threads (int): Optional, defaults to 1. Number of threads to use for brute force short term memory.
+    """
     def __init__(self, df, decision_col, epsilon, metric='l2', batchsize=500, bf_threads=1):
         if not _HAS_SNNPY:
             raise ImportError(

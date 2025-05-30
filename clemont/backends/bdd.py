@@ -28,8 +28,19 @@ BAD_CHARS = {
 }
 
 class BDD(BaseBackend):
-    def __init__(self, data_sample, n_bins, decision_col, onehot_cols=[], categorical_cols=[], collect_cex=False):
+    """
+    BDD monitoring backend. Only Linf norm is implemented.
 
+    Attributes:
+        data_sample (pandas.DataFrame): Dataframe holding a sample of the data. Required to set up the discretization.
+        n_bins (int): Number of bins to use for the discretization. For example, for a column in [0,1], 4 bins will create bins of length 0.25 each.
+        decision_col (str): Name of the column holding the model decision.
+        categorical_cols (List[str]): List of the names of categorical columns. They will not be discretized.
+        onehot_cols (List[Set[str]]): Optional. List of one-hot encoded columns. Specifying this may yield better performance.
+        collect_cex (bool): Optional, defaults to true (same behavior as other backends). Whether concrete counterexamples should be collected. If false, the .observe method will indicate that a violation has occurred but not return specific points.
+    """
+
+    def __init__(self, data_sample, n_bins, decision_col, onehot_cols=[], categorical_cols=[], collect_cex=True):
         if not _HAS_CUDD:
             raise ImportError(
                 "\n" + "="*60 + "\n"

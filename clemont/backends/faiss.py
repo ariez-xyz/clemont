@@ -5,6 +5,17 @@ from clemont.backends.base import BaseBackend
 from typing import List
 
 class BruteForce(BaseBackend):
+    """
+    Brute force monitoring backend.
+
+    Attributes:
+        df (pandas.DataFrame): Dataframe holding a sample of the data. Used to infer dimensionality and classes.
+        decision_col (str): Name of the column holding the model decision.
+        epsilon (float): maximum distance for samples to be considered close
+        metric (string): Optional. Metric to use, defaults to 'infinity', possible values listed in BruteForce.METRICS
+        nthreads (int): Optional. number of threads to use, defaults to max available
+    """
+
     METRICS = {
         'infinity': faiss.METRIC_Linf,
         'l2': faiss.METRIC_L2,
