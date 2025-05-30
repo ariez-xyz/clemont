@@ -6,9 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "clemont"
 version = "0.1.0"
 description = "Monitoring AI models for fairness and robustness"
-authors = [{name = "David Pape", email = "your.email@example.com"}]
+authors = [{name = "David Pape", email = "david.pape@stud.plus.ac.at"}]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = "==3.11.*"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/clemont"
+Homepage = "https://github.com/ariez-xyz/clemont"
 
 [tool.setuptools.packages.find]
 where = ["."]
