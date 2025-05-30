@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Monitoring AI models for fairness and robustness"
 authors = [{name = "David Pape", email = "david.pape@stud.plus.ac.at"}]
 readme = "README.md"
-requires-python = "==3.11.*"
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
