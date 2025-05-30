@@ -1,6 +1,4 @@
 import time
-
-import snnpy
 import numpy as np
 
 from clemont.backends.base import BaseBackend
