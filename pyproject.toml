@@ -25,6 +25,7 @@ dependencies = [
     "scikit-learn",
     "faiss-cpu",
     "psutil",
+    "snnpy==0.0.6", # 0.0.8 is problematic, see Dockerfile
 ]
 
 [project.urls]
