@@ -36,7 +36,7 @@ class BDD(BaseBackend):
                 "BDD backend requires 'dd' package with CUDD bindings.\n"
                 "This cannot be installed automatically via pip.\n\n"
                 "Please see the installation instructions in the README.\n"
-                "="*60
+                "\n" + "="*60 + "\n"
             )
 
         self.collect_cex = collect_cex

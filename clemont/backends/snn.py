@@ -19,7 +19,7 @@ class Snn(BaseBackend):
                 "SNN backend requires 'snn' package binding\n"
                 "This cannot be installed automatically via pip.\n\n"
                 "Please see the installation instructions in the README.\n"
-                "="*60
+                "\n" + "="*60 + "\n"
             )
 
         if metric != 'l2':
