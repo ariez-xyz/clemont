@@ -8,7 +8,7 @@ Clemont can maintain a throughput in the hundreds of samples per second even aft
 
 ### Docker
 
-For easy experimentation with all backends including BDD and SNN, use the provided Docker container:
+For easy experimentation with all backends including BDD, use the provided Docker container:
 
 ```bash
 # Build the Docker image (may take a few minutes)
@@ -25,15 +25,16 @@ docker run -it --rm -v $(pwd):/workspace clemont
 pip install clemont
 ```
 
-#### ⚠️ IMPORTANT: Manual installation of BDD dependency
+#### ⚠️ IMPORTANT: Manual installation of BDD dependency (pip only)
 
-The BDD backend requires the `dd.cudd` package, which cannot be automatically installed via pip due to its dependency on CUDD. As a result, it will not be available until the following steps have been completed. If you plan to use the BDD backend, you must install `dd.cudd` by manually running the [official installation script](https://github.com/tulip-control/dd/blob/main/examples/install_dd_cudd.sh) in your Python environment:
+The BDD backend requires the `dd.cudd` package, which cannot be automatically installed via pip due to its dependency on CUDD. As a result, if you plan to use the BDD backend, you must install `dd.cudd` manually by running the [official installation script](https://github.com/tulip-control/dd/blob/main/examples/install_dd_cudd.sh) in your Python environment (note that this is done automatically in the Docker image):
 
 ```bash
 curl -O https://raw.githubusercontent.com/tulip-control/dd/refs/heads/main/examples/install_dd_cudd.sh
 chmod +x install_dd_cudd.sh
 ./install_dd_cudd.sh
 ```
+
 
 ## Usage
 
