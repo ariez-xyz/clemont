@@ -107,8 +107,8 @@ class BaseBackend(ABC):
 
         # Filter results outside epsilon range
         valid_points = [i for i, d in enumerate(distances[0]) if 0 <= d < epsilon]
-        filtered_distances = [distances[0][i] for i in valid_points]
-        filtered_indices = [indices[0][i] for i in valid_points]
+        filtered_distances = [float(distances[0][i]) for i in valid_points]
+        filtered_indices = [int(indices[0][i]) for i in valid_points]
 
         return filtered_distances, filtered_indices
 

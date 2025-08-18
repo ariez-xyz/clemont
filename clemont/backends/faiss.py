@@ -20,12 +20,16 @@ class BruteForce(BaseBackend):
         'infinity': faiss.METRIC_Linf,
         'l2': faiss.METRIC_L2,
         'l1': faiss.METRIC_L1,
-        'inner_product': faiss.METRIC_INNER_PRODUCT,
+        'cosine': faiss.METRIC_INNER_PRODUCT,
     }
 
     def __init__(self, df, decision_col, epsilon, metric='infinity', nthreads=0):
         if metric not in self.METRICS.keys():
             raise NotImplementedError(f"invalid metric {metric}. valid metrics: {list(self.METRICS.keys())}")
+        if metric == 'cosine':
+            feature_cols = df.drop(columns=[decision_col])
+            l2_norms = np.sqrt((feature_cols ** 2).sum(axis=1))
+            assert np.allclose(l2_norms, 1.0), "All feature vectors must have unit L2 norm when using cosine metric"
 
         self.dim = df.shape[1] - 1 # kNN algo is blind to the decision column
 
@@ -74,6 +78,13 @@ class BruteForce(BaseBackend):
                 continue 
 
             query_fn = lambda k: idx.search(row_data, k)
+
+            if self._meta["metric"] == 'cosine': 
+                # need to do (1 - cosine similarity) or epsilon-small values don't imply similarity
+                def query_fn(k):
+                    dists, ids = idx.search(row_data, k)
+                    return 1-dists, ids
+
             _, indices = self.emulate_range_query(query_fn, self.epsilon)
             cexs.extend(indices)
 
