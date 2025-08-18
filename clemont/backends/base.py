@@ -92,18 +92,21 @@ class BaseBackend(ABC):
             if len(distances[0]) == 0:
                 self.radius_query_ks += [0]
                 return [], []
+            elif all(d < 0 for d in distances[0]):
+                # faiss returns -inf if fewer than k points in index -- early break avoids looping to max_k
+                break
             elif all(d < epsilon for d in distances[0]):
                 k *= 2
             else:
                 break
 
         if k > max_k:
-            self.radius_query_ks += [-1] # Indicate that query crossed max_k
+            self.radius_query_ks += [-1] # Indicate that query exceeds max_k
         else:
             self.radius_query_ks += [k]
 
-        # Toss out results outside epsilon range
-        valid_points = [i for i, d in enumerate(distances[0]) if d < epsilon]
+        # Filter results outside epsilon range
+        valid_points = [i for i, d in enumerate(distances[0]) if 0 <= d < epsilon]
         filtered_distances = [distances[0][i] for i in valid_points]
         filtered_indices = [indices[0][i] for i in valid_points]
 

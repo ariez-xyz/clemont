@@ -69,7 +69,8 @@ class BruteForce(BaseBackend):
         for decision, idx in self.indices.items():
             # for the index matching the point's decision: skip search, instead add point
             if decision == row[self.decision_col]:
-                idx.add_with_ids(row_data, [row_id]) # pass explicit id - the automatically assigned sequential ids are only unique within each index
+                # pass explicit id - the automatically assigned sequential ids are only unique within each index
+                idx.add_with_ids(row_data, np.array([row_id]))
                 continue 
 
             query_fn = lambda k: idx.search(row_data, k)
