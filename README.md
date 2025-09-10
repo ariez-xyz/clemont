@@ -1,5 +1,8 @@
 # Clemont
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15552183.svg)](https://doi.org/10.5281/zenodo.15552183)
+[![pypi](https://img.shields.io/pypi/v/clemont?color=white)](https://pypi.org/project/clemont/)
+
 Clemont is a Python package for monitoring AI models for fairness and robustness. It provides multiple monitoring backends (BDD, FAISS, KDTree, and SNN) to detect violations of fairness and robustness constraints in real-time. 
 
 Clemont can maintain a throughput in the hundreds of samples per second even after processing tens of millions of samples, or at an input dimensionality in the tens of thousands, depending on the backend. See our paper for detailed methodology and backend comparisons.
