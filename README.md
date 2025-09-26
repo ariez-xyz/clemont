@@ -5,7 +5,14 @@
 
 Clemont is a Python package for monitoring AI models for fairness and robustness. It provides multiple monitoring backends (BDD, FAISS, KDTree, and SNN) to detect violations of fairness and robustness constraints in real-time. 
 
-Clemont can maintain a throughput in the hundreds of samples per second even after processing tens of millions of samples, or at an input dimensionality in the tens of thousands, depending on the backend. See our paper for detailed methodology and backend comparisons.
+Clemont observes a sequence of input-decision pairs $(x_1, y_1,), \dots, (x_n, y_n)$ in an online fashion (or from a .csv file). The current pair is said to be a *violation* if there exists a past input-decision pair $x_j,y_j$ such that $d(x_j, x_n) < \epsilon$ and $y_j \neq y_n$, where $d$ is some distance metric on the input space, for example $L_\infty$. Clemont accepts input-decision pairs in its `.observe()` method and will return the index of any past pairs that form a violation with respect to the passed pair.
+
+Clemont can maintain a throughput in the hundreds of samples per second even after processing tens of millions of samples, or at an input dimensionality in the tens of thousands, depending on the backend. See our [paper](https://doi.org/10.1145/3711896.3737054) for detailed methodology and backend comparisons.
+
+### News
+
+* August 3, 2025: Our paper has been [awarded](https://kdd2025.kdd.org/awards/) Runner Up for the Best Paper Award in the research track of KDD '25!
+
 
 ## Installation
 
@@ -97,8 +104,23 @@ The Dockerfile uses the most recent version of SNN and may be consulted for the 
 
 ## Citation
 
-If you use Clemont in your research, please cite our paper:
+If you use Clemont in your research, please cite our paper.
 
 ```bibtex
-[TODO]
+@inproceedings{10.1145/3711896.3737054,
+author = {Gupta, Ashutosh and Henzinger, Thomas A. and Kueffner, Konstantin and Mallik, Kaushik and Pape, David},
+title = {Monitoring Robustness and Individual Fairness},
+year = {2025},
+isbn = {9798400714542},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3711896.3737054},
+doi = {10.1145/3711896.3737054},
+booktitle = {Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V.2},
+pages = {790–801},
+numpages = {12},
+keywords = {adversarial robustness, fixed-radius nearest neighbor search, individual fairness, monitoring, semantic robustness, trustworthy ai},
+location = {Toronto ON, Canada},
+series = {KDD '25}
+}
 ```
