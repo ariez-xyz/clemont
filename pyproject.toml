@@ -25,6 +25,7 @@ dependencies = [
     "scikit-learn",
     "faiss-cpu",
     "psutil",
+    "pytest",
     "snnpy==0.0.6", # 0.0.8 is problematic, see Dockerfile
 ]
 
@@ -34,3 +35,8 @@ Homepage = "https://github.com/ariez-xyz/clemont"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["clemont*"]
+
+[tool.pytest.ini_options]
+addopts = [
+    "-W ignore::DeprecationWarning", # suppress DeprecationWarning: builtin type swigvarlink [...]
+]
