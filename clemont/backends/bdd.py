@@ -165,6 +165,11 @@ class BDD(BaseBackend):
         for col in cols:
             col_flas = []
             col_nbits = len(vars_map['x'][col])
+
+            if col_nbits == 0:
+                if col == decision:
+                    raise ValueError("BDD error: decision column must have at least one bit")
+                continue
         
             # same-case
             col_flas.append(f"({' & '.join([same(col, j, col_nbits) for j in range(col_nbits)])})")
@@ -214,4 +219,3 @@ class BDD(BaseBackend):
             D = D & bdd.add_expr(col_matches)
 
         return D
-
