@@ -137,7 +137,8 @@ class FaissFRNN(FRNNBackend):
 
         distances = self._transform_distances_for_output(raw_distances)
 
-        mask = distances <= epsilon + 1e-9
+        tolerance = epsilon * 1e-9 if epsilon > 1 else 1e-9
+        mask = distances < (epsilon - tolerance)
         filtered_ids = raw_ids[mask]
         filtered_distances = distances[mask]
 
