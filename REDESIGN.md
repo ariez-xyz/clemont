@@ -26,6 +26,7 @@
     3. Insert the new point into the FRNN instance for its own label.
     4. Return the counterexample set (and later, quantitative metrics).
   - Enforce non-optional `point_id`; provide a simple incremental ID helper for callers that do not manage IDs manually.
+  - Accept backend factories directly (lambdas, partials, classes) that capture all configuration internally, keeping the monitor agnostic to backend signatures.
 - Because decision handling lives here, the FRNN backends stay decision-agnostic. Alternate strategies (single shared index + filtering, custom scoring monitors, etc.) can be added without touching FRNN code.
 
 ## BDD Refactor

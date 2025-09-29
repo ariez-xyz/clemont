@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Callable, Dict, Hashable, Iterable, Optional, Tuple
 
 from clemont.frnn import FRNNBackend, FRNNResult
-from clemont.frnn.metrics import ensure_canonical_metric
 
 
 @dataclass(frozen=True)
@@ -20,39 +19,21 @@ class ObservationResult:
 class Monitor:
     """Manage per-decision FRNN indices and surface monitor-friendly semantics."""
 
-    def __init__(
-        self,
-        backend_factory: Callable[..., FRNNBackend],
-        *,
-        epsilon: float,
-        metric: str,
-        backend_kwargs: Optional[Dict[str, object]] = None,
-    ) -> None:
+    def __init__(self, backend_factory: Callable[[], FRNNBackend]) -> None:
         """Create a monitor backed by per-decision FRNN indices.
 
         Parameters
         ----------
         backend_factory:
-            Callable that returns a new ``FRNNBackend`` when invoked with
-            ``epsilon`` and ``metric`` keyword arguments. This can be the class
-            itself or any factory function/partial.
-        epsilon:
-            Default radius to configure for each backend instance.
-        metric:
-            Canonical metric name (e.g., ``"linf"``) that the backend should
-            support.
-        backend_kwargs:
-            Additional keyword arguments forwarded to the factory.
+            Callable returning a new ``FRNNBackend``. The callable should
+            capture any configuration (e.g., metric, epsilon) internally via a
+            closure, ``functools.partial`` or other mechanism.
         """
+
         if not callable(backend_factory):
             raise TypeError("backend_factory must be callable")
 
-        canonical_metric = ensure_canonical_metric(metric)
-
         self._backend_factory = backend_factory
-        self._backend_kwargs = dict(backend_kwargs or {})
-        self._epsilon = float(epsilon)
-        self._metric = canonical_metric
         self._backends: Dict[Hashable, FRNNBackend] = {}
         self._next_point_id = 0
 
@@ -66,49 +47,53 @@ class Monitor:
         """Instantiate a backend for the configured metric and epsilon."""
 
         try:
-            return self._backend_factory(
-                epsilon=self._epsilon,
-                metric=self._metric,
-                **self._backend_kwargs,
-            )
-        except TypeError as exc:  # pragma: no cover - defensive
-            raise TypeError("backend_factory must accept epsilon= and metric=") from exc
+            backend = self._backend_factory()
         except Exception as exc:
             raise RuntimeError(
-                f"failed to construct backend for metric '{self._metric}'"
+                "failed to construct backend via monitor factory"
             ) from exc
+        if not isinstance(backend, FRNNBackend):
+            raise TypeError("backend_factory must return an instance of FRNNBackend")
+        return backend
 
     def _combine_results(self, results: Iterable[FRNNResult]) -> FRNNResult:
         """Merge neighbour results from multiple decision-specific backends."""
 
-        ids_with_dist: Dict[int, float] = {}
-        all_distances_available = True
-        seen_ids = set()
+        merged: Dict[int, Optional[float]] = {}
+        has_distances: bool = all([x.distances is not None for x in results])
 
         for result in results:
             if not result.ids:
                 continue
 
-            if result.distances is None:
-                all_distances_available = False
-                seen_ids.update(result.ids)
-                continue
+            current_has_distances = result.distances is not None
 
-            for pid, dist in zip(result.ids, result.distances):
-                seen_ids.add(pid)
-                if pid not in ids_with_dist or dist < ids_with_dist[pid]:
-                    ids_with_dist[pid] = dist
+            assert has_distances == current_has_distances, "Inconsistent distance availability across per-decision backends"
 
-        if not seen_ids:
+            if current_has_distances:
+                assert result.distances is not None  # for type-checkers
+                dists_raw = result.distances
+            else:
+                dists_raw = [0] * len(result.ids)
+
+            for pid_raw, dist_raw in zip(result.ids, dists_raw):
+                pid = int(pid_raw)
+                assert pid not in merged, "Duplicate neighbour id encountered across per-decision backends"
+                merged[pid] = float(dist_raw)
+
+        if not merged:
             return FRNNResult(ids=())
 
-        if not all_distances_available:
-            return FRNNResult(ids=tuple(sorted(seen_ids)))
+        if has_distances:
+            ordered = sorted(
+                ((pid, dist) for pid, dist in merged.items() if dist is not None),
+                key=lambda item: (item[1], item[0]),
+            )
+            ordered_ids = tuple(pid for pid, _ in ordered)
+            ordered_distances = tuple(dist for _, dist in ordered)
+            return FRNNResult(ids=ordered_ids, distances=ordered_distances)
 
-        ordered = sorted(ids_with_dist.items(), key=lambda item: (item[1], item[0]))
-        ordered_ids = tuple(pid for pid, _ in ordered)
-        ordered_dists = tuple(dist for _, dist in ordered)
-        return FRNNResult(ids=ordered_ids, distances=ordered_dists)
+        return FRNNResult(ids=tuple(sorted(merged.keys())))
 
     def observe(
         self,
