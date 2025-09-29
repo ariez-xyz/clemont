@@ -63,9 +63,13 @@ class FaissFRNN(FRNNBackend):
         self._index: Optional[faiss.IndexIDMap] = None  # type: ignore[name-defined]
 
     def _ensure_index(self, dim: int) -> None:
-        if self._index is None:
-            flat = faiss.IndexFlat(dim, self._metric_id)
-            self._index = faiss.IndexIDMap(flat)
+        if self._dim is None: # create index of dimension dim
+            self._dim = dim
+            if self._index is None:
+                flat = faiss.IndexFlat(dim, self._metric_id)
+                self._index = faiss.IndexIDMap(flat)
+        if dim != self._dim:
+            raise ValueError("all points must share the same dimensionality")
 
     def _compute_faiss_epsilon(self, epsilon: float) -> float:
         if self.metric == "l2":
@@ -89,13 +93,9 @@ class FaissFRNN(FRNNBackend):
             raise ValueError("points must have unit L2 norm when using cosine metric")
 
         dim = vector.shape[0]
-        if self._dim is None:
-            self._dim = dim
-            self._ensure_index(dim)
-        elif dim != self._dim:
-            raise ValueError("all points must share the same dimensionality")
+        self._ensure_index(dim)
+        assert self._index is not None  # type checker
 
-        assert self._index is not None  # For mypy; constructed above
         self._index.add_with_ids(vector.reshape(1, -1), np.array([int(point_id)], dtype="int64"))
 
     def query(self, point: Iterable[float], *, radius: Optional[float] = None) -> FRNNResult:
