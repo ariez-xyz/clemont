@@ -7,6 +7,8 @@ from typing import Iterable, Optional, Tuple
 import numpy as np
 from sklearn.neighbors import KDTree
 
+from clemont.frnn.faiss import FaissFRNN
+
 from .base import FRNNBackend, FRNNResult
 
 
@@ -31,16 +33,19 @@ class KdTreeFRNN(FRNNBackend):
     def supported_metrics(cls) -> Tuple[str, ...]:
         return tuple(cls._METRIC_MAP.keys())
 
-    def __init__(self, *, epsilon: float, metric: str = "linf") -> None:
+    def __init__(self, *, epsilon: float, metric: str = "linf", batchsize: int = 1000, bf_threads: int = 1) -> None:
         super().__init__(
             epsilon=epsilon,
             metric=metric,
             is_sound=True,
             is_complete=True,
         )
+        self._batchsize: int = batchsize
+        self._bf_threads: int = bf_threads
         self._points: list[np.ndarray] = []
         self._ids: list[int] = []
         self._tree: Optional[KDTree] = None
+        self._bruteforce: FaissFRNN = FaissFRNN(epsilon=epsilon, metric=metric, nthreads=bf_threads)
         self._sk_metric = self._METRIC_MAP[self.metric]
 
     def _rebuild_tree(self) -> None:
@@ -49,6 +54,9 @@ class KdTreeFRNN(FRNNBackend):
             return
         data = np.vstack(self._points)
         self._tree = KDTree(data, metric=self._sk_metric)
+
+    def _clear_bruteforce(self) -> None:
+        self._bruteforce = FaissFRNN(epsilon=self.epsilon, metric=self.metric, nthreads=self._bf_threads)
 
     def add(self, point: Iterable[float], point_id: int) -> None:
         arr = np.asarray(tuple(point), dtype=float)
@@ -59,7 +67,7 @@ class KdTreeFRNN(FRNNBackend):
         self._rebuild_tree()
 
     def query(self, point: Iterable[float], *, radius: Optional[float] = None) -> FRNNResult:
-        if self._tree is None:
+        if len(self._points) == 0:
             return FRNNResult(ids=())
 
         arr = np.asarray(tuple(point), dtype=float)
