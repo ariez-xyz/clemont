@@ -37,6 +37,37 @@ class FRNNResult:
             distances_tuple = tuple(float(d) for d in distances)
         return cls(ids=ids_tuple, distances=distances_tuple)
 
+    @classmethod
+    def merging(
+        cls,
+        results: Iterable[FRNNResult]
+    ) -> "FRNNResult":
+        """Merge compatible FRNNResult instances into a single result."""
+        if not results:
+            return cls(ids=())
+        
+        all_ids = []
+        all_distances = []
+        has_distances: bool = all([res.distances is not None for res in results])
+        
+        for result in results:
+            for id_val in result.ids:
+                if id_val in all_ids:
+                    raise RuntimeError(f"Incompatible results: duplicate ID {id_val}.")
+
+            current_has_distances = result.distances is not None
+            if not has_distances and current_has_distances:
+                raise RuntimeError("Incompatible results: inconsistent distance availability.")
+
+            all_ids.extend(result.ids)
+            if has_distances:
+                all_distances.extend(result.distances)
+        
+        return cls(
+            ids=tuple(all_ids),
+            distances=tuple(all_distances) if has_distances else None
+        )
+
 
 class FRNNBackend(ABC):
     """Abstract interface for fixed-radius nearest neighbour search backends."""

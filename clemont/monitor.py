@@ -56,45 +56,6 @@ class Monitor:
             raise TypeError("backend_factory must return an instance of FRNNBackend")
         return backend
 
-    def _combine_results(self, results: Iterable[FRNNResult]) -> FRNNResult:
-        """Merge neighbour results from multiple decision-specific backends."""
-
-        merged: Dict[int, Optional[float]] = {}
-        has_distances: bool = all([x.distances is not None for x in results])
-
-        for result in results:
-            if not result.ids:
-                continue
-
-            current_has_distances = result.distances is not None
-
-            assert has_distances == current_has_distances, "Inconsistent distance availability across per-decision backends"
-
-            if current_has_distances:
-                assert result.distances is not None  # for type-checkers
-                dists_raw = result.distances
-            else:
-                dists_raw = [0] * len(result.ids)
-
-            for pid_raw, dist_raw in zip(result.ids, dists_raw):
-                pid = int(pid_raw)
-                assert pid not in merged, "Duplicate neighbour id encountered across per-decision backends"
-                merged[pid] = float(dist_raw)
-
-        if not merged:
-            return FRNNResult(ids=())
-
-        if has_distances:
-            ordered = sorted(
-                ((pid, dist) for pid, dist in merged.items() if dist is not None),
-                key=lambda item: (item[1], item[0]),
-            )
-            ordered_ids = tuple(pid for pid, _ in ordered)
-            ordered_distances = tuple(dist for _, dist in ordered)
-            return FRNNResult(ids=ordered_ids, distances=ordered_distances)
-
-        return FRNNResult(ids=tuple(sorted(merged.keys())))
-
     def observe(
         self,
         point: Iterable[float],
@@ -122,11 +83,11 @@ class Monitor:
             point_id = self._next_point_id
             self._next_point_id += 1
 
-        queries = []
+        results = []
         for dec_value, backend in self._backends.items():
             if dec_value == decision:
                 continue
-            queries.append(backend.query(point, radius=radius))
+            results.append(backend.query(point, radius=radius))
 
         backend = self._backends.get(decision)
         if backend is None:
@@ -135,5 +96,5 @@ class Monitor:
 
         backend.add(point, point_id)
 
-        combined = self._combine_results(queries)
+        combined = FRNNResult.merging(results)
         return ObservationResult(point_id=point_id, counterexamples=combined)

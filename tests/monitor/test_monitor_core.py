@@ -31,7 +31,7 @@ def _build_monitor():
     return Monitor(factory)
 
 
-def test_combine_results_prefers_smaller_distance():
+def test_frnn_merge_basic():
     monitor = _build_monitor()
 
     results = [
@@ -39,13 +39,13 @@ def test_combine_results_prefers_smaller_distance():
         FRNNResult(ids=(3,), distances=(0.02,)),
     ]
 
-    combined = monitor._combine_results(results)
+    combined = FRNNResult.merging(results)
 
-    assert combined.ids == (3, 2, 1)
-    assert combined.distances == pytest.approx((0.02, 0.05, 0.3))
+    assert set(combined.ids) == set((3, 2, 1))
+    assert sorted(combined.distances) == pytest.approx(sorted((0.02, 0.05, 0.3)))
 
 
-def test_combine_results_handles_missing_distances():
+def test_frnn_merge_handles_missing_distances():
     monitor = _build_monitor()
 
     results = [
@@ -53,8 +53,8 @@ def test_combine_results_handles_missing_distances():
         FRNNResult(ids=(5,), distances=(0.1,)),
     ]
 
-    with pytest.raises(AssertionError):
-        monitor._combine_results(results)
+    with pytest.raises(RuntimeError):
+        FRNNResult.merging(results)
 
 
 def test_combine_results_all_without_distances():
@@ -65,13 +65,13 @@ def test_combine_results_all_without_distances():
         FRNNResult(ids=(5,), distances=None),
     ]
 
-    combined = monitor._combine_results(results)
+    combined = FRNNResult.merging(results)
 
     assert combined.ids == (4, 5)
     assert combined.distances is None
 
 
-def test_combine_results_raises_on_duplicate_ids():
+def test_result_merge_raises_on_duplicate_ids():
     monitor = _build_monitor()
 
     results = [
@@ -79,8 +79,8 @@ def test_combine_results_raises_on_duplicate_ids():
         FRNNResult(ids=(1,), distances=(0.2,)),
     ]
 
-    with pytest.raises(AssertionError):
-        monitor._combine_results(results)
+    with pytest.raises(RuntimeError):
+        FRNNResult.merging(results)
 
 
 def test_monitor_factory_without_parameters():
