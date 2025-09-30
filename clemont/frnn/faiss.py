@@ -8,14 +8,7 @@ import numpy as np
 
 from .base import FRNNBackend, FRNNResult
 
-try:
-    import faiss  # type: ignore
-
-    _HAS_FAISS = True
-except ImportError:  # pragma: no cover - optional dependency
-    faiss = None  # type: ignore
-    _HAS_FAISS = False
-
+import faiss  
 
 class FaissFRNN(FRNNBackend):
     """FAISS IndexFlat-based FRNN backend.
@@ -26,24 +19,19 @@ class FaissFRNN(FRNNBackend):
     """
 
     _METRIC_MAP: Dict[str, int] = {
-        "linf": getattr(faiss, "METRIC_Linf", None) if _HAS_FAISS else None,
-        "l2": getattr(faiss, "METRIC_L2", None) if _HAS_FAISS else None,
-        "l1": getattr(faiss, "METRIC_L1", None) if _HAS_FAISS else None,
-        "cosine": getattr(faiss, "METRIC_INNER_PRODUCT", None) if _HAS_FAISS else None,
+        "linf": faiss.METRIC_Linf,
+        "l2": faiss.METRIC_L2,
+        "l1": faiss.METRIC_L1,
+        "cosine": faiss.METRIC_INNER_PRODUCT,
     }
 
     @classmethod
     def supported_metrics(cls) -> Tuple[str, ...]:
-        if not _HAS_FAISS:
-            return ()
         return tuple(
             metric for metric, metric_id in cls._METRIC_MAP.items() if metric_id is not None
         )
 
     def __init__(self, *, epsilon: float, metric: str = "linf", nthreads: int = 0) -> None:
-        if not _HAS_FAISS:
-            raise ImportError("FaissFRNN requires the 'faiss' package to be installed")
-
         super().__init__(
             epsilon=epsilon,
             metric=metric,
@@ -94,9 +82,8 @@ class FaissFRNN(FRNNBackend):
 
         dim = vector.shape[0]
         self._ensure_index(dim)
-        assert self._index is not None  # type checker
 
-        self._index.add_with_ids(vector.reshape(1, -1), np.array([int(point_id)], dtype="int64"))
+        self._index.add_with_ids(vector.reshape(1, -1), np.array([int(point_id)], dtype="int64")) # type: ignore
 
     def query(self, point: Iterable[float], *, radius: Optional[float] = None) -> FRNNResult:
         if self._index is None or self._index.ntotal == 0:
@@ -122,7 +109,7 @@ class FaissFRNN(FRNNBackend):
         initial_k = min(max(1, total), 4)
 
         def _search(k: int):
-            distances_raw, ids_raw = self._index.search(query_vec, k)
+            distances_raw, ids_raw = self._index.search(query_vec, k)  # type: ignore
             return distances_raw[0], ids_raw[0]
 
         raw_distances, raw_ids = self.emulate_range_query(
