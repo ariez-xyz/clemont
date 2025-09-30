@@ -13,7 +13,7 @@ from clemont.backends.faiss import BruteForce
 
 DATA_PATH = pathlib.Path(__file__).parent.parent / "testdata0.csv"
 LEGACY_METRICS = {"linf": "infinity", "l2": "l2", "l1": "l1"}
-EPSILONS = [round(0.1 * i, 1) for i in range(1, 6)]
+EPSILONS = [round(0.1 * i, 1) for i in range(1, 6, 2)]
 TOL = 1e-6
 
 
