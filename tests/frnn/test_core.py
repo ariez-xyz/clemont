@@ -42,3 +42,73 @@ def test_metric_normalization_strictness():
     with pytest.raises(TypeError):
         ensure_canonical_metric(123)  # type: ignore[arg-type]
 
+
+def test_merging_empty_results():
+    """Test merging an empty iterable returns empty result."""
+    result = FRNNResult.merging([])
+    assert result.ids == ()
+    assert result.distances is None
+
+
+def test_merging_single_result():
+    """Test merging a single result returns that result."""
+    original = FRNNResult(ids=(1, 2), distances=(0.1, 0.2))
+    merged = FRNNResult.merging([original])
+    assert merged.ids == (1, 2)
+    assert merged.distances == (0.1, 0.2)
+
+
+def test_merging_multiple_results_with_distances():
+    """Test merging multiple results with distances."""
+    result1 = FRNNResult(ids=(1, 2), distances=(0.1, 0.2))
+    result2 = FRNNResult(ids=(3, 4), distances=(0.3, 0.4))
+    merged = FRNNResult.merging([result1, result2])
+    assert set(merged.ids) == {1, 2, 3, 4}
+    assert merged.distances is not None
+    assert len(merged.distances) == 4
+
+
+def test_merging_multiple_results_without_distances():
+    """Test merging multiple results without distances."""
+    result1 = FRNNResult(ids=(1, 2))
+    result2 = FRNNResult(ids=(3, 4))
+    merged = FRNNResult.merging([result1, result2])
+    assert set(merged.ids) == {1, 2, 3, 4}
+    assert merged.distances is None
+
+
+def test_merging_with_empty_results():
+    """Test merging with some empty results included."""
+    result1 = FRNNResult(ids=(1, 2), distances=(0.1, 0.2))
+    empty_result = FRNNResult(ids=())
+    result2 = FRNNResult(ids=(3, 4), distances=(0.3, 0.4))
+    merged = FRNNResult.merging([result1, empty_result, result2])
+    assert set(merged.ids) == {1, 2, 3, 4}
+    assert merged.distances is not None
+    assert len(merged.distances) == 4
+
+
+def test_merging_duplicate_ids_raises():
+    """Test that merging results with duplicate IDs raises RuntimeError."""
+    result1 = FRNNResult(ids=(1, 2), distances=(0.1, 0.2))
+    result2 = FRNNResult(ids=(2, 3), distances=(0.3, 0.4))
+    with pytest.raises(RuntimeError, match="duplicate ID 2"):
+        FRNNResult.merging([result1, result2])
+
+
+def test_merging_inconsistent_distance_availability_raises():
+    """Test that merging results with inconsistent distance availability raises RuntimeError."""
+    result_with_distances = FRNNResult(ids=(1, 2), distances=(0.1, 0.2))
+    result_without_distances = FRNNResult(ids=(3, 4))
+    with pytest.raises(RuntimeError, match="inconsistent distance availability"):
+        FRNNResult.merging([result_with_distances, result_without_distances])
+
+
+def test_merging_preserves_sorting():
+    """Test that merged results are properly sorted by distance."""
+    result1 = FRNNResult(ids=(1, 2), distances=(0.2, 0.1))
+    result2 = FRNNResult(ids=(3, 4), distances=(0.4, 0.3))
+    merged = FRNNResult.merging([result1, result2])
+    # Results should be sorted by distance in ascending order
+    assert merged.ids == (2, 1, 4, 3)
+    assert merged.distances == (0.1, 0.2, 0.3, 0.4)

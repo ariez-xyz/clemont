@@ -55,25 +55,36 @@ class FRNNResult:
         
         all_ids = []
         all_distances = []
-        has_distances: bool = all([res.distances is not None for res in results])
+        has_distances: bool = all([result.has_distances() for result in results])
         
         for result in results:
+            if result.is_empty(): continue
+
             for id_val in result.ids:
                 if id_val in all_ids:
                     raise RuntimeError(f"Incompatible results: duplicate ID {id_val}.")
 
-            current_has_distances = result.distances is not None
-            if not has_distances and current_has_distances:
+            if not has_distances and result.has_distances():
                 raise RuntimeError("Incompatible results: inconsistent distance availability.")
 
             all_ids.extend(result.ids)
-            if has_distances:
+            if has_distances: 
+                assert result.distances is not None # type chk
                 all_distances.extend(result.distances)
         
         return cls(
             ids=tuple(all_ids),
             distances=tuple(all_distances) if has_distances else None
         )
+
+    def __len__(self):
+        return len(self.ids)
+
+    def is_empty(self):
+        return len(self) == 0
+
+    def has_distances(self):
+        return self.is_empty() or self.distances is not None
 
 
 class FRNNBackend(ABC):
