@@ -145,6 +145,12 @@ class FRNNBackend(ABC):
 
         return tuple(self._range_query_ks)
 
+    @property
+    def supports_knn(self) -> bool:
+        """Whether the backend natively implements k-NN queries."""
+
+        return False
+
     def resolve_radius(self, radius: Optional[float]) -> float:
         """Return the radius to use for a query, enforcing backend constraints."""
         if radius is None:
@@ -235,3 +241,20 @@ class FRNNBackend(ABC):
         radius: Optional[float] = None,
     ) -> FRNNResult:
         """Return neighbours for the given point within the requested radius."""
+
+    def query_knn(
+        self,
+        point,
+        *,
+        k: int,
+        radius: Optional[float] = None,
+    ) -> FRNNResult:
+        """Return up to ``k`` nearest neighbours, optionally filtered by radius.
+
+        Subclasses that do not override this method are treated as lacking
+        native k-NN support and should advertise ``supports_knn = False``.
+        """
+
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement query_knn"
+        )

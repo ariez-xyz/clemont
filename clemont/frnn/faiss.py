@@ -31,6 +31,10 @@ class FaissFRNN(FRNNBackend):
             metric for metric, metric_id in cls._METRIC_MAP.items() if metric_id is not None
         )
 
+    @property
+    def supports_knn(self) -> bool:
+        return True
+
     def __init__(self, *, epsilon: float, metric: str = "linf", nthreads: int = 0) -> None:
         super().__init__(
             epsilon=epsilon,
@@ -71,6 +75,20 @@ class FaissFRNN(FRNNBackend):
             return np.sqrt(np.maximum(distances, 0.0))
         return distances
 
+    def _prepare_query_vector(self, point: Iterable[float]) -> np.ndarray:
+        vector = np.asarray(tuple(point), dtype="float32")
+        if vector.ndim != 1:
+            raise ValueError("points must be one-dimensional sequences")
+
+        if self._dim is None or vector.shape[0] != self._dim:
+            raise ValueError("query dimensionality does not match indexed points")
+
+        norm = np.linalg.norm(vector)
+        if self.metric == "cosine" and not np.isclose(norm, 1.0, atol=1e-6):
+            raise ValueError("points must have unit L2 norm when using cosine metric")
+
+        return vector
+
     def add(self, point: Iterable[float], point_id: int) -> None:
         vector = np.asarray(tuple(point), dtype="float32")
         if vector.ndim != 1:
@@ -89,17 +107,7 @@ class FaissFRNN(FRNNBackend):
         if self._index is None or self._index.ntotal == 0:
             return FRNNResult(ids=())
 
-        vector = np.asarray(tuple(point), dtype="float32")
-        if vector.ndim != 1:
-            raise ValueError("points must be one-dimensional sequences")
-
-        if self._dim is None or vector.shape[0] != self._dim:
-            raise ValueError("query dimensionality does not match indexed points")
-
-        norm = np.linalg.norm(vector)
-        if self.metric == "cosine" and not np.isclose(norm, 1.0, atol=1e-6):
-            raise ValueError("points must have unit L2 norm when using cosine metric")
-
+        vector = self._prepare_query_vector(point)
         epsilon = self.resolve_radius(radius)
         faiss_epsilon = self._compute_faiss_epsilon(epsilon)
 
@@ -125,3 +133,44 @@ class FaissFRNN(FRNNBackend):
         distances = self._transform_distances_for_output(raw_distances)
 
         return FRNNResult.from_iterables(raw_ids, distances)
+
+    def query_knn(
+        self,
+        point: Iterable[float],
+        *,
+        k: int,
+        radius: Optional[float] = None,
+    ) -> FRNNResult:
+        if k <= 0:
+            raise ValueError("k must be positive")
+
+        if self._index is None or self._index.ntotal == 0:
+            return FRNNResult(ids=())
+
+        vector = self._prepare_query_vector(point)
+        query_vec = vector.reshape(1, -1)
+
+        k = min(k, self._index.ntotal)
+        distances_raw, ids_raw = self._index.search(query_vec, k)  # type: ignore
+
+        ids = ids_raw[0]
+        distances = self._transform_distances_for_output(distances_raw[0])
+
+        valid_mask = ids != -1
+        if not np.any(valid_mask):
+            return FRNNResult(ids=())
+
+        ids = ids[valid_mask]
+        distances = distances[valid_mask]
+
+        if radius is not None:
+            epsilon = self.resolve_radius(radius)
+            tol = epsilon * 1e-9 if epsilon > 1 else 1e-9
+            within_mask = distances <= (epsilon + tol)
+            ids = ids[within_mask]
+            distances = distances[within_mask]
+
+        if ids.size == 0:
+            return FRNNResult(ids=())
+
+        return FRNNResult.from_iterables(ids, distances)

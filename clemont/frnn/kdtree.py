@@ -30,6 +30,10 @@ class KdTreeFRNN(FRNNBackend):
     def supported_metrics(cls) -> Tuple[str, ...]:
         return tuple(cls._METRIC_MAP.keys())
 
+    @property
+    def supports_knn(self) -> bool:
+        return True
+
 
     def __init__(self, *, epsilon: float, metric: str = "linf", batchsize: int = 500, bf_threads: int = 1) -> None:
         super().__init__(
@@ -82,6 +86,29 @@ class KdTreeFRNN(FRNNBackend):
 
         return FRNNResult(ids=mapped_idxs, distances=dist_row)
 
+    def _ltmemory_knn(self, point: Iterable[float], k: int) -> FRNNResult:
+        if not self._ltmemory or k <= 0:
+            return FRNNResult(ids=())
+
+        arr = self._point2np(point)
+        data = getattr(self._ltmemory, "data", None)
+        available = data.shape[0] if data is not None else k
+        max_k = min(k, available)
+        if max_k <= 0:
+            return FRNNResult(ids=())
+
+        distances, indices = self._ltmemory.query(arr, k=max_k, return_distance=True)
+
+        idx_row = np.asarray(indices[0], dtype=int)
+        dist_row = np.asarray(distances[0], dtype=float)
+
+        if idx_row.size == 0:
+            return FRNNResult(ids=())
+
+        mapped = [self._ids[idx] for idx in idx_row]
+
+        return FRNNResult.from_iterables(mapped, dist_row)
+
 
     def _clear_stmemory(self) -> None:
         self._stmemory = FaissFRNN(epsilon=self.epsilon, metric=self.metric, nthreads=self._bf_threads)
@@ -108,3 +135,50 @@ class KdTreeFRNN(FRNNBackend):
 
         return FRNNResult.merging([lt_results, st_results])
 
+    def query_knn(
+        self,
+        point: Iterable[float],
+        *,
+        k: int,
+        radius: Optional[float] = None,
+    ) -> FRNNResult:
+        if k <= 0:
+            raise ValueError("k must be positive")
+
+        if len(self._points) == 0:
+            return FRNNResult(ids=())
+
+        lt_result = self._ltmemory_knn(point, k)
+        st_result = self._stmemory.query_knn(point, k=k)
+
+        candidates = []
+        for result in (lt_result, st_result):
+            if result.is_empty():
+                continue
+            if not result.has_distances():
+                raise RuntimeError("k-NN results must include distances")
+            assert result.distances is not None  # for type checkers
+            candidates.extend(zip(result.ids, result.distances))
+
+        if not candidates:
+            return FRNNResult(ids=())
+
+        dedup: dict[int, float] = {}
+        for pid, dist in candidates:
+            current = dedup.get(pid)
+            if current is None or dist < current:
+                dedup[pid] = float(dist)
+
+        items = sorted(dedup.items(), key=lambda item: item[1])
+
+        if radius is not None:
+            epsilon = self.resolve_radius(radius)
+            tol = epsilon * 1e-9 if epsilon > 1 else 1e-9
+            items = [(pid, dist) for pid, dist in items if dist <= (epsilon + tol)]
+
+        if not items:
+            return FRNNResult(ids=())
+
+        top = items[:k]
+        ids, distances = zip(*top)
+        return FRNNResult(ids=tuple(ids), distances=tuple(distances))

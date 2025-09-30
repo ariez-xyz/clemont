@@ -31,6 +31,26 @@ def test_frnn_backend_rejects_non_positive_epsilon():
         Broken(epsilon=0, metric="linf", is_sound=True, is_complete=True)
 
 
+def test_frnn_backend_knn_default_not_supported():
+    class NoKnn(FRNNBackend):
+        @classmethod
+        def supported_metrics(cls):
+            return ("linf",)
+
+        def add(self, point, point_id):  # pragma: no cover - unused
+            raise NotImplementedError
+
+        def query(self, point, *, radius=None):  # pragma: no cover - unused
+            return FRNNResult(ids=())
+
+    backend = NoKnn(epsilon=0.1, metric="linf", is_sound=True, is_complete=True)
+
+    assert backend.supports_knn is False
+
+    with pytest.raises(NotImplementedError):
+        backend.query_knn((0.0,), k=1)
+
+
 def test_metric_normalization_strictness():
     assert ensure_canonical_metric("linf") == "linf"
     assert ensure_canonical_metric("L2") == "l2"

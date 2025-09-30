@@ -12,6 +12,7 @@ def test_naive_frnn_linf_radius_handling_and_properties():
     assert backend.metric == "linf"
     assert backend.is_sound
     assert backend.is_complete
+    assert backend.supports_knn
 
     default_result = backend.query((0.1, 0.1))
     assert default_result.ids == (42,)
@@ -49,3 +50,27 @@ def test_naive_frnn_l1_support():
 def test_supported_metrics_reported_by_naive_backend():
     assert set(NaiveFRNN.supported_metrics()) == {"linf", "l2", "l1"}
 
+
+def test_naive_knn_queries():
+    backend = NaiveFRNN(epsilon=0.5, metric="linf")
+    points = [
+        ((0.0, 0.0), 0),
+        ((0.1, 0.1), 1),
+        ((0.2, 0.2), 2),
+        ((0.3, 0.3), 3),
+    ]
+
+    for point, idx in points:
+        backend.add(point, point_id=idx)
+
+    result = backend.query_knn((0.15, 0.15), k=2)
+    assert len(result.ids) == 2
+    assert result.ids[0] == 1
+    assert result.distances is not None
+    assert result.distances[0] <= result.distances[1]
+
+    filtered = backend.query_knn((0.15, 0.15), k=3, radius=0.15)
+    assert all(dist <= 0.15 + 1e-9 for dist in filtered.distances or [])
+
+    with pytest.raises(ValueError):
+        backend.query_knn((0.0, 0.0), k=0)
