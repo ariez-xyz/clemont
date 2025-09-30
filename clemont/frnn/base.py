@@ -23,6 +23,13 @@ class FRNNResult:
     def __post_init__(self) -> None:
         if self.distances is not None and len(self.ids) != len(self.distances):
             raise ValueError("ids and distances must have matching lengths")
+        
+        # Sort ids and distances by distance if distances are provided
+        if len(self.ids) > 0 and self.distances is not None:
+            sorted_pairs = sorted(zip(self.ids, self.distances), key=lambda x: x[1])
+            sorted_ids, sorted_distances = zip(*sorted_pairs)
+            object.__setattr__(self, 'ids', sorted_ids)
+            object.__setattr__(self, 'distances', sorted_distances)
 
     @classmethod
     def from_iterables(
