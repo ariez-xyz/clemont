@@ -181,7 +181,6 @@ def test_monitor_kdtree_matches_legacy_random(metric_frnn, epsilon):
 
         kd_result = monitor_kd.observe(point, decision, point_id=int(idx))
         legacy_res = legacy.observe(row.copy(), row_id=int(idx))
-        print(kd_result, legacy_res)
 
         test_set = set(map(int, kd_result.counterexamples.ids))
         validation_set = set(map(int, legacy_res))

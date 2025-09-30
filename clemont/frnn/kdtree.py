@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Iterable, Optional, Tuple
 
 import numpy as np
+from numpy._core.fromnumeric import reshape, shape
 from sklearn.neighbors import KDTree
 
 from clemont.frnn.faiss import FaissFRNN
@@ -13,15 +14,11 @@ from .base import FRNNBackend, FRNNResult
 
 
 class KdTreeFRNN(FRNNBackend):
-    """Simple KDTree-backed FRNN backend.
-
-    Notes
-    -----
-    This implementation rebuilds the KDTree on every ``add`` call. While not
-    suitable for high-throughput scenarios, it provides a straightforward
-    baseline that matches the behaviour of the legacy monitor for correctness
-    testing purposes.
-    """
+    """KDTree-backed FRNN backend. Dynamic indexing is implemented with a
+    long-term/short-term memory split, where the KDTree serves as long-term
+    memory that is reindexed periodically (controllable via batchsize parameter).
+    Points that arrive between reindexing cycles are stored in a brute-force 
+    short-term memory. Query results are merged from both memories."""
 
     _METRIC_MAP = {
         "l2": "euclidean",
@@ -33,7 +30,8 @@ class KdTreeFRNN(FRNNBackend):
     def supported_metrics(cls) -> Tuple[str, ...]:
         return tuple(cls._METRIC_MAP.keys())
 
-    def __init__(self, *, epsilon: float, metric: str = "linf", batchsize: int = 1000, bf_threads: int = 1) -> None:
+
+    def __init__(self, *, epsilon: float, metric: str = "linf", batchsize: int = 500, bf_threads: int = 1) -> None:
         super().__init__(
             epsilon=epsilon,
             metric=metric,
@@ -42,54 +40,71 @@ class KdTreeFRNN(FRNNBackend):
         )
         self._batchsize: int = batchsize
         self._bf_threads: int = bf_threads
+        self._current_batch_length: int = 0
         self._points: list[np.ndarray] = []
         self._ids: list[int] = []
-        self._tree: Optional[KDTree] = None
-        self._bruteforce: FaissFRNN = FaissFRNN(epsilon=epsilon, metric=metric, nthreads=bf_threads)
+        self._ltmemory: Optional[KDTree] = None
+        self._stmemory: FaissFRNN = FaissFRNN(epsilon=epsilon, metric=metric, nthreads=bf_threads)
         self._sk_metric = self._METRIC_MAP[self.metric]
 
-    def _rebuild_tree(self) -> None:
-        if not self._points:
-            self._tree = None
-            return
-        data = np.vstack(self._points)
-        self._tree = KDTree(data, metric=self._sk_metric)
 
-    def _clear_bruteforce(self) -> None:
-        self._bruteforce = FaissFRNN(epsilon=self.epsilon, metric=self.metric, nthreads=self._bf_threads)
-
-    def add(self, point: Iterable[float], point_id: int) -> None:
+    def _point2np(self, point: Iterable[float]) -> np.ndarray:
         arr = np.asarray(tuple(point), dtype=float)
         if arr.ndim != 1:
             raise ValueError("points must be one-dimensional sequences")
-        self._points.append(arr)
+        return arr.reshape(1, -1)
+
+
+    def _build_ltmemory(self) -> None:
+        if not self._points:
+            self._ltmemory = None
+            return
+        data = np.vstack(self._points)
+        self._ltmemory = KDTree(data, metric=self._sk_metric)
+
+
+    def _ltmemory_query(self, point: Iterable[float], *, radius: Optional[float] = None) -> FRNNResult:
+        if not self._ltmemory: return FRNNResult(ids=())
+
+        r = self.resolve_radius(radius)
+        arr = self._point2np(point)
+        
+        indices, distances = self._ltmemory.query_radius(arr, r, return_distance=True)
+
+        idx_row = indices[0]
+        dist_row = distances[0]
+
+        if len(idx_row) == 0:
+            return FRNNResult(ids=())
+
+        # sklearn.KDTree uses sequential ids, need to map back to actual point_ids
+        mapped_idxs: Tuple[int] = tuple([self._ids[idx] for idx in idx_row])
+
+        return FRNNResult(ids=mapped_idxs, distances=dist_row)
+
+
+    def _clear_stmemory(self) -> None:
+        self._stmemory = FaissFRNN(epsilon=self.epsilon, metric=self.metric, nthreads=self._bf_threads)
+
+
+    def add(self, point: Iterable[float], point_id: int) -> None:
+        self._points.append(self._point2np(point))
         self._ids.append(int(point_id))
-        self._rebuild_tree()
+        self._stmemory.add(point, point_id)
+        self._current_batch_length += 1
+
+        if self._current_batch_length >= self._batchsize: # Rebuild
+            self._build_ltmemory()
+            self._clear_stmemory()
+            self._current_batch_length = 0
+
 
     def query(self, point: Iterable[float], *, radius: Optional[float] = None) -> FRNNResult:
         if len(self._points) == 0:
             return FRNNResult(ids=())
 
-        arr = np.asarray(tuple(point), dtype=float)
-        if arr.ndim != 1:
-            raise ValueError("points must be one-dimensional sequences")
+        lt_results = self._ltmemory_query(point, radius=radius)
+        st_results = self._stmemory.query(point, radius=radius)
 
-        r = self.resolve_radius(radius)
-        indices, distances = self._tree.query_radius(arr.reshape(1, -1), r, return_distance=True)
+        return FRNNResult.merging([lt_results, st_results])
 
-        idx_row = indices[0]
-        dist_row = distances[0]
-        if len(idx_row) == 0:
-            return FRNNResult(ids=())
-
-        unique: dict[int, float] = {}
-        for idx, dist in zip(idx_row, dist_row):
-            pid = self._ids[int(idx)]
-            fd = float(dist)
-            if pid not in unique or fd < unique[pid]:
-                unique[pid] = fd
-
-        ordered = sorted(unique.items(), key=lambda item: (item[1], item[0]))
-        ordered_ids = tuple(pid for pid, _ in ordered)
-        ordered_dists = tuple(dist for _, dist in ordered)
-        return FRNNResult(ids=ordered_ids, distances=ordered_dists)
