@@ -43,7 +43,7 @@
 - Expand tests incrementally as additional FRNN backends land.
 
 ## Next Steps
-1. Land scaffolding (`frnn/base.py`, FAISS FRNN implementation, `Monitor`, initial tests) without changing existing API surface.
-2. Add remaining FRNN backends and parity tests.
-3. Migrate BDD helpers into `clemont/bdd/`, update imports.
-4. Once parity is proven, deprecate and eventually retire the legacy `.observe` interface.
+1. [X] Land scaffolding (`frnn/base.py`, FAISS FRNN implementation, `Monitor`, initial tests) without changing existing API surface.
+2. [ ] Add remaining FRNN backends and parity tests. (WIP: so far, FAISS and KDTree are implemented and tested)
+3. [ ] Migrate BDD helpers into `clemont/bdd/`, update imports.
+4. [ ] Once parity is proven, deprecate and eventually retire the legacy `.observe` interface.

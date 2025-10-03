@@ -14,6 +14,29 @@ Clemont can maintain a throughput in the hundreds of samples per second even aft
 * August 3, 2025: Our paper has been [awarded](https://kdd2025.kdd.org/awards/) Runner Up for the Best Paper Award in the research track of KDD '25!
 
 
+## Quickstart
+
+See `example.py` for more detail.
+
+```python
+import numpy as np
+from clemont.monitor import Monitor
+from clemont.frnn import FaissFRNN, NaiveFRNN
+
+# Generate random example data
+datapoints = np.random.rand(1000, 10)
+decisions = np.random.choice([0, 1], size=1000)
+
+backend_factory = lambda: FaissFRNN(epsilon=0.2, metric="linf")
+monitor = Monitor(backend_factory)
+
+for index, (point, decision) in enumerate(zip(datapoints, decisions)):
+    result = monitor.observe(point, decision, point_id=index)
+    if result.counterexamples.ids: 
+        raise RuntimeException("fairness violation!")
+```
+
+
 ## Installation
 
 ### Docker
@@ -44,40 +67,6 @@ curl -O https://raw.githubusercontent.com/tulip-control/dd/refs/heads/main/examp
 chmod +x install_dd_cudd.sh
 ./install_dd_cudd.sh
 ```
-
-
-## Usage
-
-See also `example.py`.
-
-```python
-import pandas as pd
-import numpy as np
-from clemont.backends.faiss import BruteForce
-
-# Create random example data
-column_names = ['pred'] + [f'c{i}' for i in range(1, 10)]
-df = pd.DataFrame(np.random.uniform(0, 1, size=(1000, 10)), columns=column_names)
-df['pred'] = (df['pred'] > 0.75).astype(int)  # Binary decision
-
-# Initialize monitoring backend
-backend = BruteForce(df, 'pred', epsilon=0.2)
-
-# Monitor new samples for fairness/robustness violations
-for index, row in df.iterrows():
-    violations = backend.observe(row, row_id=index)
-    print(f"{index}: {violations}")
-```
-
-Clemont's monitoring procedure is built around two core methods:
-
-**Backend Constructor**: Initialize a monitoring backend with your training data sample. The constructor signature varies by backend, but typically takes a pandas DataFrame containing your data sample, which is used to infer information about dimensionality, column names, value ranges, and decision classes. Additional parameters are documented in each backend, and include $\epsilon$ or discretization bins (for BDD), distance metrics (for FAISS/KDTree), batch sizes, and the prediction column name.
-
-**Observe Method**: Monitor new samples in real-time using the `observe()` method. This method takes a pandas Series representing a new data point and returns a list of row IDs from your training data that violate fairness or robustness constraints (i.e., samples that are epsilon-close to the new point but have different predictions). 
-
-* For indexed backends, the `observe()` method transparently handles short-term and long-term memory management.
-* The BDD backend may return false positives, so post-verification may be desired.
-* There is a `DataframeRunner` class included that handles post-verification and takes performance metrics. For its usage, as well as a powerful script for running experiments on Clemont, see our separate [experiments repository](https://github.com/ariez-xyz/aimon). 
 
 
 ## Notes

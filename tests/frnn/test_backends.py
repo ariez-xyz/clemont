@@ -132,7 +132,6 @@ def test_backends_reject_invalid_k(backend_cls):
 
 @pytest.mark.parametrize("backend_cls", BACKEND_CLASSES)
 def test_backends_knn_matches_naive(backend_cls):
-    print(backend_cls)
     metrics = sorted(
         set(NaiveFRNN.supported_metrics()) & set(backend_cls.supported_metrics())
     )
