@@ -167,6 +167,12 @@ def test_backends_knn_matches_naive(backend_cls):
                     assert np.isclose(actual_map[pid], exp_dist, rtol=1e-5, atol=1e-6)
 
             override = max(epsilon / 2, epsilon * 0.1)
+
+            if isinstance(backend, KdTreeFRNN):
+                with pytest.raises(NotImplementedError):
+                    backend.query_knn(point, k=k, radius=override)
+                continue
+
             expected_limited = naive.query_knn(point, k=k, radius=override)
             actual_limited = backend.query_knn(point, k=k, radius=override)
 

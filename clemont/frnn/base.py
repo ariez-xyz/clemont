@@ -93,16 +93,16 @@ class FRNNBackend(ABC):
     def __init__(
         self,
         *,
-        epsilon: float,
+        epsilon: float | None = None,
         metric: str,
         is_sound: bool,
         is_complete: bool,
     ) -> None:
-        if epsilon <= 0:
+        if epsilon is not None and epsilon <= 0:
             raise ValueError("epsilon must be positive")
         from .metrics import ensure_canonical_metric  # Local import to avoid cycles.
 
-        self._epsilon = float(epsilon)
+        self._epsilon: Optional[float] = None if epsilon is None else float(epsilon)
         self._metric = ensure_canonical_metric(metric)
         self._is_sound = bool(is_sound)
         self._is_complete = bool(is_complete)
@@ -115,8 +115,8 @@ class FRNNBackend(ABC):
             )
 
     @property
-    def epsilon(self) -> float:
-        """Default epsilon configured for the backend."""
+    def epsilon(self) -> Optional[float]:
+        """Default epsilon configured for the backend (if any)."""
         return self._epsilon
 
     @property
@@ -154,6 +154,11 @@ class FRNNBackend(ABC):
     def resolve_radius(self, radius: Optional[float]) -> float:
         """Return the radius to use for a query, enforcing backend constraints."""
         if radius is None:
+            if self._epsilon is None:
+                raise RuntimeError(
+                    "No epsilon configured for this FRNN backend; specify one at"
+                    " construction time or pass a radius override to the query."
+                )
             return self._epsilon
         if radius <= 0:
             raise ValueError("radius override must be positive")

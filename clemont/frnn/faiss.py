@@ -35,7 +35,13 @@ class FaissFRNN(FRNNBackend):
     def supports_knn(self) -> bool:
         return True
 
-    def __init__(self, *, epsilon: float, metric: str = "linf", nthreads: int = 0) -> None:
+    def __init__(
+        self,
+        *,
+        epsilon: float | None = None,
+        metric: str = "linf",
+        nthreads: int = 0,
+    ) -> None:
         super().__init__(
             epsilon=epsilon,
             metric=metric,

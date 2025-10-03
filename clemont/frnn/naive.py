@@ -26,7 +26,7 @@ class NaiveFRNN(FRNNBackend):
     def supports_knn(self) -> bool:
         return True
 
-    def __init__(self, *, epsilon: float, metric: str = "linf") -> None:
+    def __init__(self, *, epsilon: float | None = None, metric: str = "linf") -> None:
         super().__init__(
             epsilon=epsilon,
             metric=metric,

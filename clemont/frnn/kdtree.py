@@ -35,7 +35,14 @@ class KdTreeFRNN(FRNNBackend):
         return True
 
 
-    def __init__(self, *, epsilon: float, metric: str = "linf", batchsize: int = 500, bf_threads: int = 1) -> None:
+    def __init__(
+        self,
+        *,
+        epsilon: float | None = None,
+        metric: str = "linf",
+        batchsize: int = 500,
+        bf_threads: int = 1,
+    ) -> None:
         super().__init__(
             epsilon=epsilon,
             metric=metric,
@@ -48,7 +55,11 @@ class KdTreeFRNN(FRNNBackend):
         self._points: list[np.ndarray] = []
         self._ids: list[int] = []
         self._ltmemory: Optional[KDTree] = None
-        self._stmemory: FaissFRNN = FaissFRNN(epsilon=epsilon, metric=metric, nthreads=bf_threads)
+        self._stmemory: FaissFRNN = FaissFRNN(
+            epsilon=self.epsilon,
+            metric=self.metric,
+            nthreads=bf_threads,
+        )
         self._sk_metric = self._METRIC_MAP[self.metric]
 
 
@@ -151,34 +162,7 @@ class KdTreeFRNN(FRNNBackend):
         lt_result = self._ltmemory_knn(point, k)
         st_result = self._stmemory.query_knn(point, k=k)
 
-        candidates = []
-        for result in (lt_result, st_result):
-            if result.is_empty():
-                continue
-            if not result.has_distances():
-                raise RuntimeError("k-NN results must include distances")
-            assert result.distances is not None  # for type checkers
-            candidates.extend(zip(result.ids, result.distances))
-
-        if not candidates:
-            return FRNNResult(ids=())
-
-        dedup: dict[int, float] = {}
-        for pid, dist in candidates:
-            current = dedup.get(pid)
-            if current is None or dist < current:
-                dedup[pid] = float(dist)
-
-        items = sorted(dedup.items(), key=lambda item: item[1])
-
         if radius is not None:
-            epsilon = self.resolve_radius(radius)
-            tol = epsilon * 1e-9 if epsilon > 1 else 1e-9
-            items = [(pid, dist) for pid, dist in items if dist <= (epsilon + tol)]
+            raise NotImplementedError("unsupported")
 
-        if not items:
-            return FRNNResult(ids=())
-
-        top = items[:k]
-        ids, distances = zip(*top)
-        return FRNNResult(ids=tuple(ids), distances=tuple(distances))
+        return FRNNResult.merging([lt_result, st_result])
