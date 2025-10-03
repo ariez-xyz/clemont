@@ -6,105 +6,7 @@ import numpy as np
 import pytest
 
 from clemont.quantitative_monitor import QuantitativeMonitor
-from clemont.frnn import FRNNBackend, FRNNResult
-
-
-# =========================
-# Exact, in-memory backend
-# =========================
-
-class ExactBackend(FRNNBackend):
-    """
-    A simple, exact FRNN backend used only for tests.
-    - Stores all points in-memory
-    - Computes distances exactly with numpy
-    - Supports both range queries and k-NN queries
-    """
-
-    def __init__(self, *, epsilon: float = 1.0, metric: str = "l2"):
-        super().__init__(epsilon=epsilon, metric=metric, is_sound=True, is_complete=True)
-        self._xs: list[np.ndarray] = []
-        self._ids: list[int] = []
-
-    @classmethod
-    def supported_metrics(cls) -> tuple[str, ...]:
-        return ("l2", "l1", "linf", "cosine")
-
-    @property
-    def supports_knn(self) -> bool:
-        return True
-
-    def add(self, point, point_id: int) -> None:
-        x = np.asarray(point, dtype=float).reshape(-1)
-        self._xs.append(x)
-        self._ids.append(int(point_id))
-
-    # Distance helpers
-    def _d(self, a: np.ndarray, b: np.ndarray) -> float:
-        if self.metric == "l2":
-            return float(np.linalg.norm(a - b, ord=2))
-        if self.metric == "l1":
-            return float(np.linalg.norm(a - b, ord=1))
-        if self.metric == "linf":
-            return float(np.linalg.norm(a - b, ord=np.inf))
-        if self.metric == "cosine":
-            na = np.linalg.norm(a)
-            nb = np.linalg.norm(b)
-            if na == 0.0 or nb == 0.0:
-                return 0.0
-            cos_sim = float(np.dot(a, b) / (na * nb))
-            cos_sim = max(min(cos_sim, 1.0), -1.0)
-            return 1.0 - cos_sim
-        raise ValueError(f"unsupported metric: {self.metric}")
-
-    def _all_dists(self, q: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        if not self._xs:
-            return np.empty((0,), dtype=float), np.empty((0,), dtype=int)
-        X = np.vstack(self._xs)
-        if self.metric == "l2":
-            d = np.linalg.norm(X - q, axis=1)
-        elif self.metric == "l1":
-            d = np.linalg.norm(X - q, ord=1, axis=1)
-        elif self.metric == "linf":
-            d = np.linalg.norm(X - q, ord=np.inf, axis=1)
-        elif self.metric == "cosine":
-            qn = np.linalg.norm(q)
-            Xn = np.linalg.norm(X, axis=1)
-            denom = Xn * qn
-            with np.errstate(invalid="ignore", divide="ignore"):
-                cos = (X @ q) / denom
-            cos = np.clip(np.nan_to_num(cos, nan=1.0), -1.0, 1.0)
-            d = 1.0 - cos
-        else:
-            raise ValueError(f"unsupported metric: {self.metric}")
-        ids = np.asarray(self._ids, dtype=int)
-        return d, ids
-
-    def query(self, point, *, radius: float | None = None) -> FRNNResult:
-        eps = self.resolve_radius(radius)
-        q = np.asarray(point, dtype=float).reshape(-1)
-        d, ids = self._all_dists(q)
-        if d.size == 0:
-            return FRNNResult(ids=())
-        mask = d <= eps + (1e-9 if eps > 1 else 1e-9)
-        if not np.any(mask):
-            return FRNNResult(ids=())
-        order = np.argsort(d[mask], kind="stable")
-        return FRNNResult.from_iterables(ids[mask][order], d[mask][order])
-
-    def query_knn(self, point, *, k: int, radius: float | None = None) -> FRNNResult:
-        q = np.asarray(point, dtype=float).reshape(-1)
-        d, ids = self._all_dists(q)
-        if d.size == 0:
-            return FRNNResult(ids=())
-        order = np.argsort(d, kind="stable")
-        order = order[: min(k, order.size)]
-        # Optional post-filter by radius if provided
-        if radius is not None:
-            eps = float(radius)
-            mask = d[order] <= eps + (1e-9 if eps > 1 else 1e-9)
-            order = order[mask]
-        return FRNNResult.from_iterables(ids[order], d[order])
+from clemont.frnn import FaissFRNN, FRNNBackend, FRNNResult, NaiveFRNN
 
 
 class NoKNNBackend(FRNNBackend):
@@ -129,7 +31,7 @@ class NoKNNBackend(FRNNBackend):
 # Output-space distances
 # =========================
 
-def dout_fn(name: str):
+def distance_fn(name: str):
     def _l1(a, b): return float(np.sum(np.abs(a - b)))
     def _l2(a, b): return float(np.linalg.norm(a - b, ord=2))
     def _linf(a, b): return float(np.max(np.abs(a - b)))
@@ -157,11 +59,7 @@ def dout_fn(name: str):
 
 @pytest.fixture
 def backend_factory_l2():
-    return lambda: ExactBackend(epsilon=1.0, metric="l2")
-
-@pytest.fixture
-def backend_factory_linf():
-    return lambda: ExactBackend(epsilon=1.0, metric="linf")
+    return lambda: FaissFRNN(epsilon=1.0, metric="l2")
 
 @pytest.fixture
 def rng():
@@ -175,6 +73,15 @@ def rng():
 def test_constructor_requires_knn():
     with pytest.raises(RuntimeError):
         _ = QuantitativeMonitor(lambda: NoKNNBackend(), out_metric="linf")
+
+
+def test_range_query_requires_radius_when_no_epsilon():
+    backend = NaiveFRNN(metric="l2")
+    backend.add([0.0], point_id=0)
+    with pytest.raises(RuntimeError):
+        _ = backend.query([0.1])
+    res = backend.query([0.1], radius=0.5)
+    assert res.ids == (0,)
 
 
 def test_empty_history_returns_zero(backend_factory_l2):
@@ -212,10 +119,10 @@ def test_known_geometry_and_outputs_expected_result(backend_factory_l2):
 
     res = qm.observe([0.0, 0.1], [0.9, 0.1, 0.0])
 
-    assert pytest.approx(res.max_ratio, rel=1e-10, abs=1e-10) == 1.0 / 0.9
+    assert pytest.approx(res.max_ratio, rel=1e-6, abs=1e-6) == 1.0 / 0.9
     assert res.witness_in_distance is not None
-    assert pytest.approx(res.witness_in_distance, rel=1e-12, abs=1e-12) == 0.9
-    assert pytest.approx(res.witness_out_distance, rel=1e-12, abs=1e-12) == 1.0
+    assert pytest.approx(res.witness_in_distance, rel=1e-6, abs=1e-6) == 0.9
+    assert pytest.approx(res.witness_out_distance, rel=1e-6, abs=1e-6) == 1.0
     # Early stop by bound is likely true here because furthest_seen_din ~1.005 -> 1/1.005 < 1.111
     assert res.stopped_by_bound is True
     assert len(res.k_progression) >= 1
@@ -254,23 +161,8 @@ def _naive_max_ratio(
     if i == 0:
         return 0.0, None, None, None, 0
 
-    def din(a, b):
-        if din_name == "l2":
-            return float(np.linalg.norm(a - b, ord=2))
-        if din_name == "l1":
-            return float(np.linalg.norm(a - b, ord=1))
-        if din_name == "linf":
-            return float(np.linalg.norm(a - b, ord=np.inf))
-        if din_name == "cosine":
-            na = np.linalg.norm(a) * np.linalg.norm(b)
-            if na == 0.0:
-                return 0.0
-            cs = float(np.dot(a, b) / na)
-            cs = max(min(cs, 1.0), -1.0)
-            return 1.0 - cs
-        raise ValueError
-
-    dout = dout_fn(dout_name)
+    din = distance_fn(din_name)
+    dout = distance_fn(dout_name)
     xi = X[i]
     yi = Y[i]
     max_ratio = -math.inf
@@ -300,25 +192,34 @@ def _naive_max_ratio(
     return max_ratio, w_id, w_din, w_dout, count
 
 
-@pytest.mark.parametrize("din_metric", ["l2"])  # keep runtime reasonable; expand if desired
-@pytest.mark.parametrize("dout_metric", ["linf"])  # primary bound-aware metric for monitor
-def test_random_stream_matches_naive_all(backend_factory_l2, rng, din_metric, dout_metric):
+@pytest.mark.parametrize("din_metric", ["l2", "l1", "linf", "cosine"])
+@pytest.mark.parametrize("dout_metric", ["linf", "l1", "l2", "tv", "cosine"])
+def test_random_stream_matches_naive_all(rng, din_metric, dout_metric):
     """
-    Stream ~1000 points; for each point, compare monitor's result to naive O(n^2)
-    on the prefix history (0..i-1). This tests exactness despite early stopping.
+    Stream a few hundred points; for each point, compare monitor results to a naive O(n^2)
+    oracle on the prefix history (0..i-1) across metric combinations.
     """
-    N = 1000
+    N = 500
     d_in = 5
-    k_out = 4
+    k_out = 5
 
     # Generate random inputs X and probability outputs Y (Dirichlet)
     X = rng.normal(size=(N, d_in))
+    if din_metric == "cosine":
+        norms = np.linalg.norm(X, axis=1, keepdims=True)
+        norms[norms == 0.0] = 1.0
+        X = X / norms
     Y = rng.dirichlet(alpha=np.ones(k_out), size=N)
 
-    qm = QuantitativeMonitor(backend_factory_l2, out_metric=dout_metric, initial_k=10)
+    backend_factory = lambda: FaissFRNN(epsilon=1.0, metric=din_metric)
+    qm = QuantitativeMonitor(backend_factory, out_metric=dout_metric, initial_k=10)
 
     ratios_mon = []
     ratios_naive = []
+
+    # Cosine has more issues with float due to small values
+    rel_tol = 1e-6 if din_metric != "cosine" else 1e-4
+    abs_tol = 1e-6 if din_metric != "cosine" else 1e-4
 
     for i in range(N):
         res = qm.observe(X[i], Y[i])
@@ -331,7 +232,7 @@ def test_random_stream_matches_naive_all(backend_factory_l2, rng, din_metric, do
         if math.isinf(r):
             assert math.isinf(res.max_ratio)
         else:
-            assert pytest.approx(res.max_ratio, rel=1e-10, abs=1e-10) == r
+            assert pytest.approx(res.max_ratio, rel=rel_tol, abs=abs_tol) == r
 
     # sanity
     assert len(ratios_mon) == N
