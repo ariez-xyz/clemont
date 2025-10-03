@@ -49,7 +49,7 @@ These finite bounds are the key to **early stopping**.
 
 ## 3) Early-stoppable k-NN algorithm
 
-Upon receiving a new input-softmax pair $(x,y)$, we must find the maximum ratio over history. Computing it against *all* past points in $H$ is $O(n)$ per observation. Instead:
+Upon observing a new input-softmax pair $(x,y)$, compute the maximum ratio over the history. Computing it against *all* past points in $H$ is $O(n)$ per observation. Instead:
 
 1. Query for the $k$ nearest neighbors w.r.t $x$ and $d_\text{in}$ and double $k$ each round: $k=10 \to 20 \to 40 \to \dots$
 2. Maintain the maximum ratio so far, $\text{max_ratio}$.
@@ -115,14 +115,14 @@ $$
 
 We wrote a comprehensive `pytest` module that does the following:
 
-1. **Exact, in-memory backend** (`ExactBackend`) implementing true k-NN over all stored points, independent of FAISS. Ensures determinism and simplicity for tests.
+1. **FAISS-backed FRNN** (`FaissFRNN`) so tests exercise the production nearest-neighbour implementation end-to-end.
 2. **Hand-crafted cases** with known geometry and outputs:
    - Empty history ⇒ `max_ratio = 0`.
    - Triangular layout with softmax vectors ⇒ checks exact numeric ratio, witness distances.
    - Zero input distance with different outputs ⇒ `max_ratio = +∞`.
 3. **Randomized validation vs. naïve $O(n^2)$**:
-   - Generate ~**1000** samples with $x \sim \mathcal{N}$ and $y \sim \text{Dirichlet}$.
-   - For each new point $i$, compare the monitor’s result against a **naïve** exact maximum over $\{0,\dots,i-1\}$.
+   - Generate a few hundred samples with $x \sim \mathcal{N}$ (unit-normalized when using cosine distance) and $y \sim \text{Dirichlet}$.
+   - Sweep across all supported input metrics for the FRNN backend and all output metrics for the ratio, comparing each monitor result to a **naïve** exact maximum over $\{0,\dots,i-1\}$ within tight tolerances (slightly looser for cosine due to FAISS’s float32 accumulation).
 4. Additional checks:
    - `k_progression` is monotone and starts at `initial_k`.
    - Constructor raises if the backend lacks native k-NN.
