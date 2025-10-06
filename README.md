@@ -90,6 +90,10 @@ export CCX=/opt/homebrew/opt/llvm/bin/clang++
 
 The Dockerfile uses the most recent version of SNN and may be consulted for the installation procedure.
 
+### Deprecated API
+
+Files `runner.py` and `backends/*` implement the previous Clemont API and are deprecated.
+
 
 ## Citation
 
