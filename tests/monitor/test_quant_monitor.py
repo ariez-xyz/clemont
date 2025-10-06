@@ -92,7 +92,7 @@ def test_empty_history_returns_zero(backend_factory_l2):
     assert res.compared_count == 0
     assert res.k_progression == ()
     assert res.stopped_by_bound is False
-    assert "No history" in (res.note or "")
+    assert "Empty result" in (res.note or "")
 
 
 def test_known_geometry_and_outputs_expected_result(backend_factory_l2):
