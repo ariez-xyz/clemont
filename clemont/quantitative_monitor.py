@@ -66,6 +66,7 @@ class QuantitativeResult:
     compared_count: int                   # number of historical points actually compared
     k_progression: Tuple[int, ...]        # ks we used (e.g., 10, 20, 40, ...)
     ratio_progression: Tuple[float, ...]  # how the max ratio develops as a function of k
+    bound_progression: Tuple[float, ...]  # how the bound develops as a function of k
     stopped_by_bound: bool                # whether we early-stopped via b / d_k
     note: Optional[str] = None            # any extra diagnostic note
 
@@ -81,6 +82,7 @@ class QuantitativeResult:
             compared_count=0,
             k_progression=(),
             ratio_progression=(),
+            bound_progression=(),
             stopped_by_bound=False,
             note="Empty result",
         )
@@ -102,9 +104,10 @@ class QuantitativeMonitor:
         backend_factory: Callable[[], FRNNBackend],
         *,
         out_metric: Literal["linf", "l1", "l2", "tv", "cosine"] = "linf",
-        initial_k: int = 10,
+        initial_k: int = 16,
         max_k: Optional[int] = None,
         tol: float = 1e-12,
+        output_exponent: float = 1,
     ) -> None:
         if not callable(backend_factory):
             raise TypeError("backend_factory must be callable")
@@ -127,6 +130,7 @@ class QuantitativeMonitor:
         self._initial_k = int(initial_k)
         self._max_k = None if (max_k is None) else int(max_k)
         self._tol = float(tol)
+        self._output_exponent = output_exponent
 
         self._next_point_id: int = 0
         self._ys: Dict[int, np.ndarray] = {}                # id -> y (probability vector)
@@ -149,9 +153,6 @@ class QuantitativeMonitor:
         y: Iterable[float],
         *,
         point_id: Optional[int] = None,
-        initial_k: Optional[int] = None,
-        max_k: Optional[int] = None,
-        distance_exponent: float = 1,
     ) -> QuantitativeResult:
         """
         Compute the quantitative ratio for (point, y) against existing history,
@@ -163,8 +164,7 @@ class QuantitativeMonitor:
         y_vec = np.asarray(list(y), dtype=float).reshape(-1)
 
         pid = self._resolve_point_id(point_id)
-        k = int(initial_k if initial_k is not None else self._initial_k)
-        k_cap = int(max_k) if max_k is not None else self._max_k
+        k = self._initial_k
 
         # Short-circuit: if history empty, return 0.0 (no comparator)
         if self.size == 0:
@@ -177,6 +177,7 @@ class QuantitativeMonitor:
         compared_count = 0
         k_progression: list[int] = []
         ratio_progression: list[float] = []
+        bound_progression: list[float] = []
         max_ratio = -math.inf
         witness = None
         witness_in = None
@@ -198,7 +199,7 @@ class QuantitativeMonitor:
 
             # FRNNResult is always sorted by distance, so distances are non-decreasing.
             ids_batch = list(res.ids)
-            dists_batch = list([d**distance_exponent for d in res.distances]) # NOTE: exponentiate distance here
+            dists_batch = list([d ** self._output_exponent for d in res.distances])
 
             # If fewer than k returned, we've exhausted the index.
             exhausted = (len(ids_batch) < k)
@@ -241,24 +242,26 @@ class QuantitativeMonitor:
                 if ratio == math.inf:
                     terminate_outer = True
 
-            k_progression.append(k)
-            ratio_progression.append(max_ratio)
-
             # Early stopping via bound b / furthest_seen_din:
             # Any unseen neighbor must have d_in >= furthest_seen_din,
             # hence max possible unseen ratio <= b / furthest_seen_din.
-            if max_ratio >= (self._b / (furthest_seen_din + self._tol)):
+            bound = (self._b / (furthest_seen_din + self._tol))
+            if max_ratio >= bound:
                 stopped_by_bound = True
                 terminate_outer = True
 
             if exhausted:
                 terminate_outer = True
 
-            if k_cap is not None and k >= k_cap:
+            if self._max_k is not None and k >= self._max_k:
                 terminate_outer = True
 
+            k_progression.append(k)
+            ratio_progression.append(max_ratio)
+            bound_progression.append(bound)
+
             # Otherwise, grow k geometrically.
-            k = min(k * 2, k_cap) if k_cap is not None else (k * 2)
+            k = min(k * 2, self._max_k) if self._max_k is not None else (k * 2)
 
         # Done comparing; index the new point.
         self._backend.add(x_vec, pid)
@@ -273,6 +276,7 @@ class QuantitativeMonitor:
             compared_count=compared_count,
             k_progression=tuple(k_progression),
             ratio_progression=tuple(ratio_progression),
+            bound_progression=tuple(bound_progression),
             stopped_by_bound=stopped_by_bound,
             note=note,
         )
