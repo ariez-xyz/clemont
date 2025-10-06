@@ -165,4 +165,5 @@ class KdTreeFRNN(FRNNBackend):
         if radius is not None:
             raise NotImplementedError("unsupported")
 
-        return FRNNResult.merging([lt_result, st_result])
+        merged = FRNNResult.merging([lt_result, st_result])
+        return merged.top_k(k)

@@ -86,6 +86,25 @@ class FRNNResult:
     def has_distances(self):
         return self.is_empty() or self.distances is not None
 
+    def top_k(self, k: int) -> "FRNNResult":
+        """Return a new result containing at most the first k neighbours."""
+        if k < 0:
+            raise ValueError("k must be non-negative")
+        if k == 0 or self.is_empty():
+            return FRNNResult(ids=())
+        if k >= len(self.ids):
+            return self
+
+        ids_slice = self.ids[:k]
+        if self.distances is None:
+            return FRNNResult(ids=ids_slice)
+        return FRNNResult(ids=ids_slice, distances=self.distances[:k])
+
+    @classmethod
+    def nearest(cls, k: int, result: "FRNNResult") -> "FRNNResult":
+        """Convenience helper equivalent to ``result.top_k(k)``."""
+        return result.top_k(k)
+
 
 class FRNNBackend(ABC):
     """Abstract interface for fixed-radius nearest neighbour search backends."""

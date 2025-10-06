@@ -132,3 +132,25 @@ def test_merging_preserves_sorting():
     # Results should be sorted by distance in ascending order
     assert merged.ids == (2, 1, 4, 3)
     assert merged.distances == (0.1, 0.2, 0.3, 0.4)
+
+def test_frnnresult_top_k():
+    result = FRNNResult.from_iterables(
+        ids=[3, 1, 2],
+        distances=[0.3, 0.1, 0.2],
+    )
+
+    # __post_init__ sorts by distance
+    assert result.ids == (1, 2, 3)
+
+    top_two = result.top_k(2)
+    assert top_two.ids == (1, 2)
+    assert top_two.distances == (0.1, 0.2)
+
+    same = result.top_k(10)
+    assert same.ids == result.ids
+
+    empty = result.top_k(0)
+    assert empty.ids == ()
+
+    via_classmethod = FRNNResult.nearest(1, result)
+    assert via_classmethod.ids == (1,)

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from clemont.frnn import NaiveFRNN, KdTreeFRNN
+from clemont.frnn import NaiveFRNN, KdTreeFRNN, FRNNResult
 
 try:  # Optional dependency
     from clemont.frnn import FaissFRNN
@@ -157,6 +157,8 @@ def test_backends_knn_matches_naive(backend_cls):
             actual = backend.query_knn(point, k=k)
 
             assert len(actual.ids) <= k
+            if len(points) >= k:
+                assert len(actual.ids) == k
             assert set(actual.ids) == set(expected.ids)
 
             if expected.ids:
@@ -185,6 +187,17 @@ def test_backends_knn_matches_naive(backend_cls):
                 for pid, exp_dist in expected_map.items():
                     assert pid in actual_map
                     assert np.isclose(actual_map[pid], exp_dist, rtol=1e-5, atol=1e-6)
+
+
+def test_kdtree_knn_enforces_k_limit():
+    backend = KdTreeFRNN(metric="l2", batchsize=2)
+    for idx in range(8):
+        backend.add([float(idx)], idx)
+
+    result = backend.query_knn([2.5], k=3)
+    assert len(result.ids) == 3
+    assert result.distances is not None
+    assert all(a <= b for a, b in zip(result.distances, result.distances[1:]))
 
 
 @pytest.mark.skipif(FaissFRNN is None, reason="FAISS backend unavailable")
