@@ -7,14 +7,16 @@ Clemont is a Python package for monitoring AI models for fairness and robustness
 
 Clemont observes a sequence of input-decision pairs $(x_1, y_1,), \dots, (x_n, y_n)$ in an online fashion (or from a .csv file). The current pair is said to be a *violation* if there exists a past input-decision pair $x_j,y_j$ such that $d(x_j, x_n) < \epsilon$ and $y_j \neq y_n$, where $d$ is some distance metric on the input space, for example $L_\infty$. Clemont accepts input-decision pairs in its `.observe()` method and will return the index of any past pairs that form a violation with respect to the passed pair.
 
-Clemont can maintain a throughput in the hundreds of samples per second even after processing tens of millions of samples, or at an input dimensionality in the tens of thousands, depending on the backend. See our [paper](https://doi.org/10.1145/3711896.3737054) for detailed methodology and backend comparisons.
+Clemont can maintain a throughput in the hundreds of samples per second even after processing tens of millions of samples, or at an input dimensionality in the tens of thousands, depending on the backend. See our [paper](https://doi.org/10.1145/3711896.3737054) for detailed methodology and backend comparisons. **All experiments in the paper were conducted with version 0.1.0.**
 
 ### News
 
-* August 3, 2025: Our paper has been [awarded](https://kdd2025.kdd.org/awards/) Runner Up for the Best Paper Award in the research track of KDD '25!
+* August 3, 2025: Our paper "*Monitoring Robustness and Individual Fairness*" has been [awarded](https://kdd2025.kdd.org/awards/) Runner Up for the Best Paper Award in the research track of KDD '25!
 
 
 ## Quickstart
+
+### $\epsilon-\delta$ monitoring
 
 See `example.py` for more detail.
 
@@ -35,6 +37,10 @@ for index, (point, decision) in enumerate(zip(datapoints, decisions)):
     if result.counterexamples.ids: 
         raise RuntimeException("fairness violation!")
 ```
+
+### Quantitative monitoring
+
+We are working on adding a quantitative monitor to Clemont. See `quant_example.py` for more detail.
 
 
 ## Installation
