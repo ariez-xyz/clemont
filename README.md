@@ -3,15 +3,63 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15552183.svg)](https://doi.org/10.5281/zenodo.15552183)
 [![pypi](https://img.shields.io/pypi/v/clemont?color=white)](https://pypi.org/project/clemont/)
 
-Clemont is a Python package for monitoring AI models for fairness and robustness. It provides multiple monitoring backends (BDD, FAISS, KDTree, and SNN) to detect violations of fairness and robustness constraints in real-time. 
-
-Clemont observes a sequence of input-decision pairs $(x_1, y_1,), \dots, (x_n, y_n)$ in an online fashion (or from a .csv file). The current pair is said to be a *violation* if there exists a past input-decision pair $x_j,y_j$ such that $d(x_j, x_n) < \epsilon$ and $y_j \neq y_n$, where $d$ is some distance metric on the input space, for example $L_\infty$. Clemont accepts input-decision pairs in its `.observe()` method and will return the index of any past pairs that form a violation with respect to the passed pair.
-
-Clemont can maintain a throughput in the hundreds of samples per second even after processing tens of millions of samples, or at an input dimensionality in the tens of thousands, depending on the backend. See our [paper](https://doi.org/10.1145/3711896.3737054) for detailed methodology and backend comparisons.
+Clemont is a Python package for monitoring AI models for fairness and robustness. It provides multiple monitors and nearest-neighbor backends (BDD, FAISS, KDTree, and SNN) to detect violations of fairness and robustness constraints in real-time. 
 
 ### News
 
-* August 3, 2025: Our paper has been [awarded](https://kdd2025.kdd.org/awards/) Runner Up for the Best Paper Award in the research track of KDD '25!
+* August 3, 2025: Our paper "*Monitoring Robustness and Individual Fairness*" has been [awarded](https://kdd2025.kdd.org/awards/) Runner Up for the Best Paper Award in the research track of KDD '25!
+
+
+## Quickstart
+
+See `example.py` or `quant_example.py` for more detail.
+
+```python
+import numpy as np
+from clemont.monitor import Monitor
+from clemont.frnn import FaissFRNN, NaiveFRNN
+
+# Generate random example data
+datapoints = np.random.rand(1000, 10)
+decisions = np.random.choice([0, 1], size=1000)
+
+backend_factory = lambda: FaissFRNN(epsilon=0.2, metric="linf")
+monitor = Monitor(backend_factory)
+
+for index, (point, decision) in enumerate(zip(datapoints, decisions)):
+    result = monitor.observe(point, decision, point_id=index)
+    if result.counterexamples.ids: 
+        raise RuntimeException("fairness violation!")
+```
+
+
+## Monitors
+
+### $\epsilon$-monitor
+
+Clemont observes a sequence of input-decision pairs $(x_1, y_1,), \dots, (x_n, y_n)$ in an online fashion (or from a .csv file). The current pair is said to be a *violation* if there exists a past input-decision pair $x_j,y_j$ such that $d(x_j, x_n) < \epsilon$ and $y_j \neq y_n$, where $d$ is some distance metric on the input space, for example $L_\infty$. Clemont accepts input-decision pairs in its `.observe()` method and will return the index of any past pairs that form a violation with respect to the passed pair.
+
+Clemont can maintain a throughput in the hundreds of samples per second even after processing tens of millions of samples, or at an input dimensionality in the tens of thousands, depending on the backend. See our [paper](https://doi.org/10.1145/3711896.3737054) for detailed methodology and backend comparisons. **All experiments in the "*Monitoring Robustness and Individual Fairness*" paper were conducted with version 0.1.0.**
+
+
+### Quantitative monitor
+
+Given a stream of observations $p=(x,y)$ where $x \in \mathbb{R}^d$ is the input (features), and $y \in \Delta^{k-1}$ is the predicted *probability vector* (softmax), Clemont assigns a **continuous** score indicating how much the model’s output can change per unit of input change, relative to previously seen points. This is a local, data-driven analogue of a **Lipschitz constant**:
+
+$$
+\big((x,y),(x',y')\big) \;=\; \frac{d_{\text{out}}(y,y')}{d_{\text{in}}(x,x')}
+$$
+
+For a new point $p=(x,y)$ and a history $H$, the monitor reports
+
+$$
+Q(p;H) \;=\; \max_{(x',y')\in H} \frac{d_{\text{out}}(y,y')}{d_{\text{in}}(x,x')}.
+$$
+
+- **Large $Q$** ⇒ small input change caused a large output change (potential unfairness/instability).
+- **Small $Q$** ⇒ outputs vary mildly relative to inputs (more stable).
+
+This complements the ε-flip monitor (which answers “does there exist a nearby point with a different decision?”) with a **graded** notion (“how steep is the local slope?”).
 
 
 ## Installation
@@ -46,40 +94,6 @@ chmod +x install_dd_cudd.sh
 ```
 
 
-## Usage
-
-See also `example.py`.
-
-```python
-import pandas as pd
-import numpy as np
-from clemont.backends.faiss import BruteForce
-
-# Create random example data
-column_names = ['pred'] + [f'c{i}' for i in range(1, 10)]
-df = pd.DataFrame(np.random.uniform(0, 1, size=(1000, 10)), columns=column_names)
-df['pred'] = (df['pred'] > 0.75).astype(int)  # Binary decision
-
-# Initialize monitoring backend
-backend = BruteForce(df, 'pred', epsilon=0.2)
-
-# Monitor new samples for fairness/robustness violations
-for index, row in df.iterrows():
-    violations = backend.observe(row, row_id=index)
-    print(f"{index}: {violations}")
-```
-
-Clemont's monitoring procedure is built around two core methods:
-
-**Backend Constructor**: Initialize a monitoring backend with your training data sample. The constructor signature varies by backend, but typically takes a pandas DataFrame containing your data sample, which is used to infer information about dimensionality, column names, value ranges, and decision classes. Additional parameters are documented in each backend, and include $\epsilon$ or discretization bins (for BDD), distance metrics (for FAISS/KDTree), batch sizes, and the prediction column name.
-
-**Observe Method**: Monitor new samples in real-time using the `observe()` method. This method takes a pandas Series representing a new data point and returns a list of row IDs from your training data that violate fairness or robustness constraints (i.e., samples that are epsilon-close to the new point but have different predictions). 
-
-* For indexed backends, the `observe()` method transparently handles short-term and long-term memory management.
-* The BDD backend may return false positives, so post-verification may be desired.
-* There is a `DataframeRunner` class included that handles post-verification and takes performance metrics. For its usage, as well as a powerful script for running experiments on Clemont, see our separate [experiments repository](https://github.com/ariez-xyz/aimon). 
-
-
 ## Notes
 
 ### SNN installation issues
@@ -100,6 +114,10 @@ export CCX=/opt/homebrew/opt/llvm/bin/clang++
 ```
 
 The Dockerfile uses the most recent version of SNN and may be consulted for the installation procedure.
+
+### Deprecated API
+
+Files `runner.py` and `backends/*` implement the previous Clemont API and are deprecated.
 
 
 ## Citation

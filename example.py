@@ -1,33 +1,28 @@
-import pandas as pd
+"""Minimal usage example for Clemont's FRNN-based monitor."""
+
 import numpy as np
 
-from clemont.backends.faiss import BruteForce
-from clemont.backends.snn import Snn
-from clemont.backends.bdd import BDD
-from clemont.backends.kdtree import KdTree
+from clemont.monitor import Monitor
+from clemont.frnn import FaissFRNN, NaiveFRNN, KdTreeFRNN
+import numpy as np
 
 num_rows = 1000
 num_columns = 10
 epsilon = 0.2
 
-# Create random data
-column_names = ['pred'] + [f'c{i}' for i in range(1, num_columns)]
-np.random.seed(42)
-data = np.random.uniform(0, 1, size=(num_rows, num_columns))
-df = pd.DataFrame(data, columns=column_names)
-df['pred'] = (df['pred'] > 0.75).astype(int) # Binary decision
+# Generate 1000 10-column datapoints and binary decisions
+datapoints = np.random.rand(num_rows, num_columns)
+decisions = np.random.choice([0, 1], size=num_rows)
 
-# Set up backend
-backend = BruteForce(df, 'pred', epsilon)
+# Pick the desired FRNN backend. FaissFRNN provides high performance when the
+# optional faiss dependency is installed. NaiveFRNN works without extras.
+# backend_factory = lambda: NaiveFRNN(epsilon=epsilon, metric="linf")
+# backend_factory = lambda: KdTreeFRNN(epsilon=epsilon, metric="linf")
+backend_factory = lambda: FaissFRNN(epsilon=epsilon, metric="linf", nthreads=4)
 
-# Other backends:
-# backend = Snn(df, 'pred', epsilon)
-# backend = BDD(df, int(1//epsilon), 'pred', collect_cex=True)
-# backend = KdTree(df, 'pred', epsilon, metric='infinity', batchsize=100)
+monitor = Monitor(backend_factory)
 
-# Monitoring procedure
-for index, row in df.iterrows():
-    iter_cexs = backend.observe(row, row_id=index)
-    if iter_cexs:
-        print(f"counterexamples returned for row {index}: {iter_cexs}")
-
+for index, (point, decision) in enumerate(zip(datapoints, decisions)):
+    result = monitor.observe(point, decision, point_id=index)
+    if result.counterexamples.ids:
+        print(f"row {index}: violations {list(result.counterexamples.ids)}")

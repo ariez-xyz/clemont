@@ -1,3 +1,4 @@
 __pycache__/
 clemont.egg-info/
+.DS_Store
 dist/
