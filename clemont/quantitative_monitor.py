@@ -107,7 +107,7 @@ class QuantitativeMonitor:
         initial_k: int = 16,
         max_k: Optional[int] = None,
         tol: float = 1e-12,
-        output_exponent: float = 1,
+        input_exponent: float = 1,
     ) -> None:
         if not callable(backend_factory):
             raise TypeError("backend_factory must be callable")
@@ -130,7 +130,7 @@ class QuantitativeMonitor:
         self._initial_k = int(initial_k)
         self._max_k = None if (max_k is None) else int(max_k)
         self._tol = float(tol)
-        self._output_exponent = output_exponent
+        self._input_exponent = input_exponent
 
         self._next_point_id: int = 0
         self._ys: Dict[int, np.ndarray] = {}                # id -> y (probability vector)
@@ -199,7 +199,7 @@ class QuantitativeMonitor:
 
             # FRNNResult is always sorted by distance, so distances are non-decreasing.
             ids_batch = list(res.ids)
-            dists_batch = list([d ** self._output_exponent for d in res.distances])
+            dists_batch = list([d ** self._input_exponent for d in res.distances])
 
             # If fewer than k returned, we've exhausted the index.
             exhausted = (len(ids_batch) < k)
