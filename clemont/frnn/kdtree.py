@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Iterable, Optional, Tuple
 
 import numpy as np
-from numpy._core.fromnumeric import reshape, shape
 from sklearn.neighbors import KDTree
 
 from clemont.frnn.faiss import FaissFRNN
@@ -165,5 +164,5 @@ class KdTreeFRNN(FRNNBackend):
         if radius is not None:
             raise NotImplementedError("unsupported")
 
-        merged = FRNNResult.merging([lt_result, st_result])
-        return merged.top_k(k)
+        merged = FRNNResult.merging([lt_result, st_result]) # length 2k, sorted
+        return merged.top_k(k) # return only k nearest neighbors
