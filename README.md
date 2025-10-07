@@ -8,6 +8,7 @@ Clemont is a Python package for monitoring AI models for fairness and robustness
 ### News
 
 * August 3, 2025: Our paper "*Monitoring Robustness and Individual Fairness*" has been [awarded](https://kdd2025.kdd.org/awards/) Runner Up for the Best Paper Award in the research track of KDD '25!
+* May 15, 2025: Our paper "*Monitoring Robustness and Individual Fairness*" has been accepted to [KDD '25](https://kdd2025.kdd.org/). Code to reproduce all experiments can be found in [clemont-experiments](https://github.com/ariez-xyz/clemont-experiments/releases/tag/kdd2025). Experiments were conducted with Clemont version [0.1.0](https://github.com/ariez-xyz/clemont/releases/tag/v0.1.0).
 
 
 ## Quickstart
@@ -39,7 +40,7 @@ for index, (point, decision) in enumerate(zip(datapoints, decisions)):
 
 Clemont observes a sequence of input-decision pairs $(x_1, y_1,), \dots, (x_n, y_n)$ in an online fashion (or from a .csv file). The current pair is said to be a *violation* if there exists a past input-decision pair $x_j,y_j$ such that $d(x_j, x_n) < \epsilon$ and $y_j \neq y_n$, where $d$ is some distance metric on the input space, for example $L_\infty$. Clemont accepts input-decision pairs in its `.observe()` method and will return the index of any past pairs that form a violation with respect to the passed pair.
 
-Clemont can maintain a throughput in the hundreds of samples per second even after processing tens of millions of samples, or at an input dimensionality in the tens of thousands, depending on the backend. See our [paper](https://doi.org/10.1145/3711896.3737054) for detailed methodology and backend comparisons. **All experiments in the "*Monitoring Robustness and Individual Fairness*" paper were conducted with version 0.1.0.**
+Clemont can maintain a throughput in the hundreds of samples per second even after processing tens of millions of samples, or at an input dimensionality in the tens of thousands, depending on the backend. See our [paper](https://doi.org/10.1145/3711896.3737054) for detailed methodology and backend comparisons.
 
 
 ### Quantitative monitor
@@ -47,13 +48,13 @@ Clemont can maintain a throughput in the hundreds of samples per second even aft
 Given a stream of observations $p=(x,y)$ where $x \in \mathbb{R}^d$ is the input (features), and $y \in \Delta^{k-1}$ is the predicted *probability vector* (softmax), Clemont assigns a **continuous** score indicating how much the model’s output can change per unit of input change, relative to previously seen points. This is a local, data-driven analogue of a **Lipschitz constant**:
 
 $$
-\big((x,y),(x',y')\big) \;=\; \frac{d_{\text{out}}(y,y')}{d_{\text{in}}(x,x')}
+\big((x,y),(x',y')\big) = \frac{d_{\text{out}}(y,y')}{d_{\text{in}}(x,x')}
 $$
 
 For a new point $p=(x,y)$ and a history $H$, the monitor reports
 
 $$
-Q(p;H) \;=\; \max_{(x',y')\in H} \frac{d_{\text{out}}(y,y')}{d_{\text{in}}(x,x')}.
+Q(p;H) = \max_{(x',y')\in H} \frac{d_{\text{out}}(y,y')}{d_{\text{in}}(x,x')}.
 $$
 
 - **Large $Q$** ⇒ small input change caused a large output change (potential unfairness/instability).
