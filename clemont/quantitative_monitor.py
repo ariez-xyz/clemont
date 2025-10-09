@@ -106,7 +106,7 @@ class QuantitativeMonitor:
         out_metric: Literal["linf", "l1", "l2", "tv", "cosine"] = "linf",
         initial_k: int = 16,
         max_k: Optional[int] = None,
-        tol: float = 1e-12,
+        tol: float = 1e-6,
         input_exponent: float = 1,
     ) -> None:
         if not callable(backend_factory):
@@ -215,17 +215,17 @@ class QuantitativeMonitor:
                 seen.add(nid)
 
                 din = float(dists_batch[j])
-                # Guard small denominators; treat exact-zero carefully:
-                #  - if din == 0 and dout > 0 -> ratio = +inf (definite violation)
-                #  - if din == 0 and dout == 0 -> define ratio = 0 (doesn't raise the max)
                 y_hist = self._ys.get(nid)
                 assert y_hist is not None, f"failed sanity check: missing prediction for past point {nid}"
                 dout = self._dout(y_vec, y_hist)
 
+                # Guard small denominators; treat exact-zero carefully:
+                #  - if din == 0 and dout > 0 -> ratio = +inf (definite violation)
+                #  - if din == 0 and dout == 0 -> define ratio = 0 (doesn't raise the max)
                 if din == 0.0:
-                    if dout > 0.0:
+                    if dout > self._tol:
                         ratio = math.inf
-                        note = "Zero input distance with nonzero output difference"
+                        note = "Model assigns distinct outputs to identical inputs?"
                     else:
                         ratio = 0.0
                 else:
