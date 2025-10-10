@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, Optional, Tuple, Literal, Set
+from typing import Callable, Dict, Iterable, Optional, Tuple, Literal, Set, cast
 
 import math
 import numpy as np
@@ -168,9 +168,11 @@ class QuantitativeMonitor:
         for raw in items:
             entry = tuple(raw)
             if len(entry) == 2:
+                entry = cast(Tuple[Iterable[float], Iterable[float]], entry)
                 point_raw, prob_raw = entry
                 point_id_raw: Optional[int] = None
             elif len(entry) == 3:
+                entry = cast(Tuple[Iterable[float], Iterable[float], Optional[int]], entry)
                 point_raw, prob_raw, point_id_raw = entry
             else:
                 raise ValueError(
