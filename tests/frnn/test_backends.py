@@ -67,6 +67,41 @@ def test_backends_match_naive(backend_cls):
 
 
 @pytest.mark.parametrize("backend_cls", BACKEND_CLASSES)
+def test_batch_add_matches_incremental(backend_cls):
+    metrics = sorted(
+        set(NaiveFRNN.supported_metrics()) & set(backend_cls.supported_metrics())
+    )
+    if not metrics:
+        pytest.skip("backend shares no metrics with NaiveFRNN")
+
+    points = _load_points(limit=32)
+
+    for metric in metrics:
+        epsilon = DEFAULT_EPSILON.get(metric, 0.1)
+        naive = NaiveFRNN(epsilon=epsilon, metric=metric)
+        backend = backend_cls(epsilon=epsilon, metric=metric)
+
+        items = ((point, idx) for idx, point in enumerate(points))
+        backend.batch_add(items)
+
+        for idx, point in enumerate(points):
+            naive.add(point, point_id=idx)
+
+        for point in points[:10]:
+            expected = naive.query(point)
+            actual = backend.query(point)
+
+            assert set(actual.ids) == set(expected.ids)
+
+            expected_map = _result_to_dict(expected)
+            actual_map = _result_to_dict(actual)
+
+            for pid, exp_dist in expected_map.items():
+                assert pid in actual_map
+                assert np.isclose(actual_map[pid], exp_dist, rtol=1e-5, atol=1e-6)
+
+
+@pytest.mark.parametrize("backend_cls", BACKEND_CLASSES)
 def test_backends_respect_radius_override(backend_cls):
     metrics = sorted(
         set(NaiveFRNN.supported_metrics()) & set(backend_cls.supported_metrics())

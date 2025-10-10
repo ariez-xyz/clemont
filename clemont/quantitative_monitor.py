@@ -140,6 +140,73 @@ class QuantitativeMonitor:
         """Number of points currently indexed (== len(self._ys))."""
         return len(self._ys)
 
+    def batch_add(
+        self,
+        items: Iterable[Tuple[Iterable[float], Iterable[float]] | Tuple[Iterable[float], Iterable[float], Optional[int]]],
+    ) -> None:
+        """Preload the monitor with multiple (point, probability) pairs.
+
+        Parameters
+        ----------
+        items:
+            Iterable yielding either ``(point, probability)`` or
+            ``(point, probability, point_id)`` tuples. When ``point_id`` is omitted,
+            the monitor assigns incremental identifiers just like ``observe``.
+
+        Raises
+        ------
+        ValueError
+            If any supplied point identifier collides with existing entries or
+            appears multiple times within the batch.
+        """
+
+        pending: list[Tuple[int, np.ndarray, np.ndarray]] = []
+        existing_ids = set(self._ys.keys())
+        seen_ids: Set[int] = set()
+        next_auto_id = self._next_point_id
+
+        for raw in items:
+            entry = tuple(raw)
+            if len(entry) == 2:
+                point_raw, prob_raw = entry
+                point_id_raw: Optional[int] = None
+            elif len(entry) == 3:
+                point_raw, prob_raw, point_id_raw = entry
+            else:
+                raise ValueError(
+                    "batch_add expects entries of the form (point, prob) or (point, prob, point_id)"
+                )
+
+            x_vec = np.asarray(list(point_raw), dtype=float).reshape(-1)
+            if x_vec.size == 0:
+                raise ValueError("points must be non-empty sequences")
+            y_vec = np.asarray(list(prob_raw), dtype=float).reshape(-1)
+
+            if point_id_raw is None:
+                pid = next_auto_id
+                next_auto_id += 1
+            else:
+                pid = int(point_id_raw)
+
+            if pid in existing_ids or pid in seen_ids:
+                raise ValueError(f"duplicate point_id {pid} in batch_add")
+            seen_ids.add(pid)
+
+            pending.append((pid, x_vec, y_vec))
+
+        if not pending:
+            return
+
+        # Ensure the next automatically assigned id exceeds all provided ids.
+        max_pid = max(pid for pid, _, _ in pending)
+        next_auto_id = max(next_auto_id, max_pid + 1)
+
+        self._backend.batch_add((x, pid) for pid, x, _ in pending)
+        for pid, _, y_vec in pending:
+            self._ys[pid] = y_vec
+
+        self._next_point_id = next_auto_id
+
     def _resolve_point_id(self, point_id: Optional[int]) -> int:
         if point_id is None:
             pid = self._next_point_id
@@ -153,6 +220,7 @@ class QuantitativeMonitor:
         y: Iterable[float],
         *,
         point_id: Optional[int] = None,
+        dry_run: bool = False,
     ) -> QuantitativeResult:
         """
         Compute the quantitative ratio for (point, y) against existing history,
@@ -264,8 +332,9 @@ class QuantitativeMonitor:
             k = min(k * 2, self._max_k) if self._max_k is not None else (k * 2)
 
         # Done comparing; index the new point.
-        self._backend.add(x_vec, pid)
-        self._ys[pid] = y_vec
+        if not dry_run:
+            self._backend.add(x_vec, pid)
+            self._ys[pid] = y_vec
 
         return QuantitativeResult(
             point_id=pid,
@@ -280,4 +349,3 @@ class QuantitativeMonitor:
             stopped_by_bound=stopped_by_bound,
             note=note,
         )
-

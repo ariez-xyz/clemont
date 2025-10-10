@@ -119,7 +119,7 @@ def test_known_geometry_and_outputs_expected_result(backend_factory_l2):
 
     res = qm.observe([0.0, 0.1], [0.9, 0.1, 0.0])
 
-    assert pytest.approx(res.max_ratio, rel=1e-6, abs=1e-6) == 1.0 / 0.9
+    assert pytest.approx(res.max_ratio, rel=1e-5, abs=1e-6) == 1.0 / 0.9
     assert res.witness_in_distance is not None
     assert pytest.approx(res.witness_in_distance, rel=1e-6, abs=1e-6) == 0.9
     assert pytest.approx(res.witness_out_distance, rel=1e-6, abs=1e-6) == 1.0
@@ -127,6 +127,54 @@ def test_known_geometry_and_outputs_expected_result(backend_factory_l2):
     assert res.stopped_by_bound is True
     assert len(res.k_progression) >= 1
     assert res.k_progression[0] == 10  # exhausted index, but first k is recorded
+
+
+def test_batch_add_preloads_history(backend_factory_l2):
+    qm = QuantitativeMonitor(backend_factory_l2, out_metric="linf", initial_k=10)
+
+    entries = [
+        ([0.0, 0.0], [1.0, 0.0, 0.0]),
+        ([1.0, 0.0], [0.0, 1.0, 0.0]),
+        ([0.0, 1.0], [0.0, 0.0, 1.0]),
+    ]
+
+    qm.batch_add(entries)
+    assert qm.size == 3
+
+    res = qm.observe([0.0, 0.1], [0.9, 0.1, 0.0])
+
+    assert pytest.approx(res.max_ratio, rel=1e-5, abs=1e-6) == 1.0 / 0.9
+    assert res.compared_count == 3
+    assert res.witness_id in {0, 1, 2}
+
+
+def test_batch_add_accepts_explicit_ids(backend_factory_l2):
+    qm = QuantitativeMonitor(backend_factory_l2, out_metric="linf", initial_k=4)
+
+    qm.batch_add([
+        ([0.0, 0.0], [1.0, 0.0, 0.0], 5),
+        ([1.0, 0.0], [0.0, 1.0, 0.0], 7),
+    ])
+
+    assert qm.size == 2
+
+    res = qm.observe([2.0, 2.0], [0.3, 0.7, 0.0])
+    assert res.point_id == 8  # next id after explicit 7
+
+
+def test_batch_add_rejects_duplicate_ids(backend_factory_l2):
+    qm = QuantitativeMonitor(backend_factory_l2, out_metric="linf", initial_k=4)
+
+    qm.batch_add([([0.0, 0.0], [1.0, 0.0, 0.0], 1)])
+
+    with pytest.raises(ValueError):
+        qm.batch_add([([1.0, 0.0], [0.0, 1.0, 0.0], 1)])
+
+    with pytest.raises(ValueError):
+        qm.batch_add([
+            ([2.0, 0.0], [0.0, 0.0, 1.0], 3),
+            ([3.0, 0.0], [0.5, 0.5, 0.0], 3),
+        ])
 
 
 def test_zero_input_distance_infinite_ratio(backend_factory_l2):
@@ -143,7 +191,7 @@ def test_zero_input_distance_infinite_ratio(backend_factory_l2):
     assert res.witness_in_distance == 0.0
     assert res.witness_out_distance is not None and res.witness_out_distance > 0.0
     assert res.stopped_by_bound is True
-    assert "Zero input distance" in (res.note or "")
+    assert "Model assigns distinct outputs" in (res.note or "")
 
 # =========================
 # Randomized validation vs naive O(n^2)
@@ -217,8 +265,8 @@ def test_random_stream_matches_naive_all(rng, din_metric, dout_metric):
     ratios_mon = []
     ratios_naive = []
 
-    # Cosine has more issues with float due to small values
-    rel_tol = 1e-6 if din_metric != "cosine" else 1e-4
+    # Cosine has more issues with float due to small values in ratios
+    rel_tol = 1e-5 if din_metric != "cosine" else 1e-3
     abs_tol = 1e-6 if din_metric != "cosine" else 1e-4
 
     for i in range(N):

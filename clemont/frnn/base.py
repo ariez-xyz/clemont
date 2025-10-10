@@ -257,6 +257,20 @@ class FRNNBackend(ABC):
     def add(self, point, point_id: int) -> None:
         """Insert a new observation into the backend index."""
 
+    def batch_add(self, items: Iterable[tuple[Iterable[float], int]]) -> None:
+        """Insert multiple observations into the backend index.
+
+        Parameters
+        ----------
+        items:
+            Iterable yielding ``(point, point_id)`` pairs. The default
+            implementation simply forwards each entry to ``add``; subclasses
+            may override for vectorised ingestion.
+        """
+
+        for point, point_id in items:
+            self.add(point, point_id)
+
     @abstractmethod
     def query(
         self,
