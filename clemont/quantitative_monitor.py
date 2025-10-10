@@ -111,7 +111,7 @@ class QuantitativeMonitor:
         out_metric: Literal["linf", "l1", "l2", "tv", "cosine"] = "linf",
         initial_k: int = 16,
         max_k: Optional[int] = None,
-        k_grow_factor: float = 2,
+        k_grow_factor: Optional[float] = None,
         tol: float = 1e-6,
         input_exponent: float = 1,
     ) -> None:
@@ -129,7 +129,7 @@ class QuantitativeMonitor:
             raise ValueError("max_k must be >= initial_k")
         if tol is not None and tol < 0:
             raise ValueError("tol must be >= 0")
-        if k_grow_factor <= 0:
+        if k_grow_factor is not None and k_grow_factor <= 0:
             raise ValueError("k_grow_factor must be > 0")
 
         if out_metric not in _DOUTS:
@@ -139,7 +139,7 @@ class QuantitativeMonitor:
         self._b = _BOUNDS[out_metric]      # finite bound enables early-stopping
         self._initial_k: int = int(initial_k)
         self._max_k = None if (max_k is None) else int(max_k)
-        self._k_grow_factor = k_grow_factor
+        self._k_grow_factor = 2 if not k_grow_factor else k_grow_factor
         self._tol = float(tol)
         self._input_exponent = input_exponent
 
