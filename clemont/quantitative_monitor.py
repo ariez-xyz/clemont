@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Callable, Dict, Iterable, Optional, Tuple, Literal, Set, cast
 
 import math
+import time
 import numpy as np
 
 from clemont.frnn import FRNNBackend, FRNNResult
@@ -64,10 +65,12 @@ class QuantitativeResult:
     witness_in_distance: Optional[float]
     witness_out_distance: Optional[float]
     compared_count: int                   # number of historical points actually compared
-    k_progression: Tuple[int, ...]        # ks we used (e.g., 10, 20, 40, ...)
+    k_progression: Tuple[int, ...]        # ks we used (e.g., 16, 32, 64, ...)
     ratio_progression: Tuple[float, ...]  # how the max ratio develops as a function of k
     bound_progression: Tuple[float, ...]  # how the bound develops as a function of k
+    time_progression: Tuple[float, ...]   # time for each iteration
     stopped_by_bound: bool                # whether we early-stopped via b / d_k
+    stopped_by_maxk: bool                # whether we early-stopped via b / d_k
     note: Optional[str] = None            # any extra diagnostic note
 
     @classmethod
@@ -83,7 +86,9 @@ class QuantitativeResult:
             k_progression=(),
             ratio_progression=(),
             bound_progression=(),
+            time_progression=(),
             stopped_by_bound=False,
+            stopped_by_maxk=False,
             note="Empty result",
         )
 
@@ -106,6 +111,7 @@ class QuantitativeMonitor:
         out_metric: Literal["linf", "l1", "l2", "tv", "cosine"] = "linf",
         initial_k: int = 16,
         max_k: Optional[int] = None,
+        k_grow_factor: float = 2,
         tol: float = 1e-6,
         input_exponent: float = 1,
     ) -> None:
@@ -121,14 +127,19 @@ class QuantitativeMonitor:
             raise ValueError("initial_k must be positive")
         if max_k is not None and max_k < initial_k:
             raise ValueError("max_k must be >= initial_k")
+        if tol is not None and tol < 0:
+            raise ValueError("tol must be >= 0")
+        if k_grow_factor <= 0:
+            raise ValueError("k_grow_factor must be > 0")
 
         if out_metric not in _DOUTS:
             raise ValueError(f"Unsupported out_metric: {out_metric}")
 
         self._dout = _DOUTS[out_metric]
         self._b = _BOUNDS[out_metric]      # finite bound enables early-stopping
-        self._initial_k = int(initial_k)
+        self._initial_k: int = int(initial_k)
         self._max_k = None if (max_k is None) else int(max_k)
+        self._k_grow_factor = k_grow_factor
         self._tol = float(tol)
         self._input_exponent = input_exponent
 
@@ -234,7 +245,7 @@ class QuantitativeMonitor:
         y_vec = np.asarray(list(y), dtype=float).reshape(-1)
 
         pid = self._resolve_point_id(point_id)
-        k = self._initial_k
+        k: int = self._initial_k
 
         # Short-circuit: if history empty, return 0.0 (no comparator)
         if self.size == 0:
@@ -248,11 +259,13 @@ class QuantitativeMonitor:
         k_progression: list[int] = []
         ratio_progression: list[float] = []
         bound_progression: list[float] = []
+        time_progression: list[float] = []
         max_ratio = -math.inf
         witness = None
         witness_in = None
         witness_out = None
         stopped_by_bound = False
+        stopped_by_maxk = False
         note = None
 
         # We keep track of the current furthest *considered* input distance.
@@ -262,6 +275,8 @@ class QuantitativeMonitor:
         terminate_outer = False
 
         while not terminate_outer: # repeat kNN queries
+            iter_start = time.time()
+
             res: FRNNResult = self._backend.query_knn(x_vec, k=k)
 
             if res.distances is None:
@@ -324,14 +339,16 @@ class QuantitativeMonitor:
                 terminate_outer = True
 
             if self._max_k is not None and k >= self._max_k:
+                stopped_by_maxk = True
                 terminate_outer = True
 
             k_progression.append(k)
             ratio_progression.append(max_ratio)
             bound_progression.append(bound)
+            time_progression.append(time.time() - iter_start)
 
-            # Otherwise, grow k geometrically.
-            k = min(k * 2, self._max_k) if self._max_k is not None else (k * 2)
+            # Otherwise, grow k.
+            k = math.ceil(min(k * self._k_grow_factor, self._max_k) if self._max_k is not None else (k * self._k_grow_factor))
 
         # Done comparing; index the new point.
         if not dry_run:
@@ -348,6 +365,8 @@ class QuantitativeMonitor:
             k_progression=tuple(k_progression),
             ratio_progression=tuple(ratio_progression),
             bound_progression=tuple(bound_progression),
+            time_progression=tuple(time_progression),
             stopped_by_bound=stopped_by_bound,
+            stopped_by_maxk=stopped_by_maxk,
             note=note,
         )
