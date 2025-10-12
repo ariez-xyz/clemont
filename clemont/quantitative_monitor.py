@@ -68,9 +68,9 @@ class QuantitativeResult:
     k_progression: Tuple[int, ...]        # ks we used (e.g., 16, 32, 64, ...)
     ratio_progression: Tuple[float, ...]  # how the max ratio develops as a function of k
     bound_progression: Tuple[float, ...]  # how the bound develops as a function of k
-    time_progression: Tuple[float, ...]   # time for each iteration
+    ms_progression: Tuple[float, ...]     # cumulative time on iterated kNN queries
     stopped_by_bound: bool                # whether we early-stopped via b / d_k
-    stopped_by_maxk: bool                # whether we early-stopped via b / d_k
+    stopped_by_maxk: bool                 # whether we early-stopped via b / d_k
     note: Optional[str] = None            # any extra diagnostic note
 
     @classmethod
@@ -86,7 +86,7 @@ class QuantitativeResult:
             k_progression=(),
             ratio_progression=(),
             bound_progression=(),
-            time_progression=(),
+            ms_progression=(),
             stopped_by_bound=False,
             stopped_by_maxk=False,
             note="Empty result",
@@ -259,7 +259,7 @@ class QuantitativeMonitor:
         k_progression: list[int] = []
         ratio_progression: list[float] = []
         bound_progression: list[float] = []
-        time_progression: list[float] = []
+        ms_progression: list[float] = []
         max_ratio = -math.inf
         witness = None
         witness_in = None
@@ -271,11 +271,10 @@ class QuantitativeMonitor:
         # We keep track of the current furthest *considered* input distance.
         # Any unseen neighbor must be at least this far away.
         furthest_seen_din = 0.0
-
         terminate_outer = False
+        start_time = time.time()
 
         while not terminate_outer: # repeat kNN queries
-            iter_start = time.time()
 
             res: FRNNResult = self._backend.query_knn(x_vec, k=k)
 
@@ -345,7 +344,7 @@ class QuantitativeMonitor:
             k_progression.append(k)
             ratio_progression.append(max_ratio)
             bound_progression.append(bound)
-            time_progression.append(time.time() - iter_start)
+            ms_progression.append((time.time() - start_time) * 1000)
 
             # Otherwise, grow k.
             k = math.ceil(min(k * self._k_grow_factor, self._max_k) if self._max_k is not None else (k * self._k_grow_factor))
@@ -365,7 +364,7 @@ class QuantitativeMonitor:
             k_progression=tuple(k_progression),
             ratio_progression=tuple(ratio_progression),
             bound_progression=tuple(bound_progression),
-            time_progression=tuple(time_progression),
+            ms_progression=tuple(ms_progression),
             stopped_by_bound=stopped_by_bound,
             stopped_by_maxk=stopped_by_maxk,
             note=note,
