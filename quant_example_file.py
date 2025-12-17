@@ -12,7 +12,6 @@ def main() -> None:
     feature_cols = df.drop(columns=["label", "pred", "p0(<=50K)", "p1(>50K)"])
     prob_cols = df[["p0(<=50K)", "p1(>50K)"]]
 
-
     backend_factory = lambda: KdTreeFRNN(epsilon=0.2, metric="l2")
 
     monitor = QuantitativeMonitor(
